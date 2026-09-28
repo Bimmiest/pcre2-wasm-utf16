@@ -1,22 +1,39 @@
 version: 2
 
 updates:
-  # Only the type-check's tooling; the package itself has no dependencies.
+  # Every dependency is a development tool: lint, type-check, property tests
+  # and mutation testing. The library itself has none. Keeping them current
+  # keeps the audit job's report short and CI on supported versions.
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
       day: monday
+      time: "06:00"
+    open-pull-requests-limit: 5
     groups:
+      # Minor and patch bumps land as one PR: individually they rarely merit a
+      # review, and one CI run over all of them says as much as one per bump.
       development-dependencies:
-        patterns: ["*"]
+        dependency-type: development
         update-types: [minor, patch]
+      # eslint and @eslint/js release their majors together, and one without
+      # the other cannot install, so their majors arrive as one PR.
+      eslint:
+        patterns:
+          - eslint
+          - "@eslint/*"
+        update-types: [major]
+    # Every other major arrives on its own, to be read rather than batched.
     ignore:
-      # The types describe the Node in .nvmrc; move their major with it.
+      # The types describe the Node in .nvmrc. A types major ahead of the
+      # runtime describes APIs that do not exist yet; move it in the same
+      # change that moves .nvmrc.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
-  # Actions are pinned to commit SHAs; these updates raise the pins.
+  # Actions are pinned to commit SHAs so a moved tag cannot change what CI
+  # runs; these updates are what raise the pins.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

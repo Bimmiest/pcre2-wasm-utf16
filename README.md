@@ -110,15 +110,17 @@ used; wasm memory can grow to 1 GiB and never shrinks.
 
 ## Building
 
+The module is committed, so using the package needs no build. To rebuild it:
+
 ```sh
 npm run build:wasm   # rebuild pcre2.wasm and pcre2.wasm.sha256
 npm run check:wasm   # rebuild in a temp dir; fail unless identical to the committed file
-npm test             # node:test, no dependencies
-npm run typecheck    # tsc over src and test (after npm install)
 ```
 
 Needs clang 18 with the wasm32 target and `wasm-ld` (Debian/Ubuntu: `clang-18
 lld-18`). Another clang major version builds a working module whose bytes differ.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the tests and the checks CI runs.
 
 ## Licence
 

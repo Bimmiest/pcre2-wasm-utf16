@@ -510,9 +510,9 @@ export class Regex {
         match[g] = undefined;
         indices[g] = undefined;
       } else {
-        // `\K` in a lookahead can put the start after the end; the text is
-        // then empty, as PCRE2's own substring functions have it.
-        match[g] = s <= e ? subject.slice(s, e) : '';
+        // `\K` in a lookahead could put the start after the end; slice then
+        // gives the empty text PCRE2's own substring functions give.
+        match[g] = subject.slice(s, e);
         indices[g] = [s, e];
       }
     }

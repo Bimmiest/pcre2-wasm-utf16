@@ -6,24 +6,24 @@ on:
   pull_request:
     branches: [main]
   # The rebuild below downloads the pinned PCRE2 release and installs clang 18
-  # from the runner's apt. A weekly run notices either one going away before
-  # the next change needs them.
+  # from the runner's apt, and the audit gates on advisories that appear
+  # without anyone committing. A weekly run notices any of those changing
+  # before the next pull request has to.
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+# Read-only: nothing here writes to the repository or the API.
 permissions:
   contents: read
 
+# Superseded runs on a pull request are cancelled; on main each push is a
+# distinct commit whose result stands on its own.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # pcre2.wasm is committed, so this is what makes it trustworthy: rebuild it
-  # from the pinned PCRE2 release with the pinned toolchain and fail unless the
-  # result is byte-identical to what is checked in (and to its recorded
-  # SHA-256). Then the tests, which need no install, and the type-check.
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -35,6 +35,35 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        # With coverage: the floors are in package.json's test:coverage, so a
+        # local run gives the same verdict.
+        run: npm run test:coverage
+
+      - name: Package contents
+        # What a git-dependency install receives, licence files included.
+        run: npm run check:package
+
+  # pcre2.wasm is committed, so this is what makes it trustworthy: rebuild it
+  # from the pinned PCRE2 release with the pinned toolchain and fail unless the
+  # result is byte-identical to what is checked in (and to its recorded
+  # SHA-256). The build also holds this repository's own C to
+  # warnings-as-errors.
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
       - name: Install clang and wasm-ld
         # The major version is part of the reproducibility contract; build.sh
         # names the one the committed module was built with.
@@ -43,11 +72,25 @@ jobs:
       - name: Rebuild pcre2.wasm and compare with the committed module
         run: CLANG=clang-18 WASM_LD=wasm-ld-18 build/build.sh --check
 
-      - name: Test
-        run: npm test
+  # Separate from the tests so that a new advisory and a failing test are
+  # reported independently, and an advisory is reported in seconds.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Install dependencies
-        run: npm ci
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          # No install: npm audit reads package-lock.json.
 
-      - name: Type-check
-        run: npm run typecheck
+      - name: Audit production dependencies
+        # There are none today; this keeps the gate in place for the day one
+        # is added, since those would ship to every consumer.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Report dev-only advisories
+        # Reported, never fatal: an advisory in a test tool must not block a
+        # fix to the library.
+        run: npm audit --audit-level=high || true
