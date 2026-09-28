@@ -27,8 +27,8 @@ export default {
   // `break` is the floor: below it the run exits non-zero, which fails the
   // mutation workflow. Measured, not chosen; raise it when tests raise the
   // score, never lower it to make a branch green.
-  // 91.1% when set (326 killed, 24 timed out, 34 survived). Every survivor is
-  // a mutant no test can tell apart from the original; CONTRIBUTING.md says
-  // which kinds they are.
+  // 90.9% on CI when set (326 killed, 23 timed out, 35 survived). Every
+  // survivor is a mutant no test can tell apart from the original;
+  // CONTRIBUTING.md says which kinds they are.
   thresholds: { high: 95, low: 90, break: 90 },
 };

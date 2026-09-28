@@ -3,7 +3,7 @@ name: Mutation
 # Coverage says a line ran; it does not say a test would notice if the line
 # were wrong. Stryker answers that by changing src/ one small edit at a time
 # and checking that some test fails. The library is one file, so every run
-# mutates all of it; a run takes about ten minutes on a hosted runner, which
+# mutates all of it; a run takes about 25 minutes on a hosted runner, which
 # is why it lives here and not in ci.yml.
 on:
   schedule:
