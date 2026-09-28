@@ -1,0 +1,27 @@
+version: 2
+
+updates:
+  # Only the type-check's tooling; the package itself has no dependencies.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      development-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # The types describe the Node in .nvmrc; move their major with it.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  # Actions are pinned to commit SHAs; these updates raise the pins.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns: ["*"]
