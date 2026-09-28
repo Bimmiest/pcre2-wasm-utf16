@@ -73,8 +73,12 @@ for name in "${sources[@]}"; do
   "$CLANG" "${cflags[@]}" -c "$src/pcre2_${name}.c" -o "$work/${name}.o"
   objs+=("$work/${name}.o")
 done
-"$CLANG" "${cflags[@]}" -c "$here/libc/libc.c" -o "$work/libc.o"
-"$CLANG" "${cflags[@]}" -c "$here/bridge.c" -o "$work/bridge.o"
+# This repository's own C is held to warnings-as-errors; PCRE2 is compiled as
+# its release ships it. Warning flags do not change the generated code, so
+# they cannot affect the module's bytes.
+own_cflags=(-Wall -Wextra -Werror)
+"$CLANG" "${cflags[@]}" "${own_cflags[@]}" -c "$here/libc/libc.c" -o "$work/libc.o"
+"$CLANG" "${cflags[@]}" "${own_cflags[@]}" -c "$here/bridge.c" -o "$work/bridge.o"
 
 # 1 MiB of stack, placed first so an overflow traps instead of running into
 # static data; memory may grow to 1 GiB.

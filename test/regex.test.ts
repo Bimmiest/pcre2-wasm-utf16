@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
   ERROR_DEPTHLIMIT,
+  ERROR_HEAPLIMIT,
   ERROR_MATCHLIMIT,
   getModule,
   init,
@@ -28,7 +29,7 @@ test('the committed module matches its recorded checksum', () => {
 
 test('initialises from bytes, a compiled module, or a promise, and reports its version', async () => {
   assert.ok(isReady());
-  assert.match(version(), /^10\.48 /);
+  assert.match(version(), /^10\.48 \d{4}-\d{2}-\d{2}$/);
   initSync(getModule());
   await init(Promise.resolve(bytes));
   await init(getModule());
@@ -56,8 +57,51 @@ test('named groups, unset groups and duplicate names', () => {
 
   const dup = new Regex('(?:(?<n>a)|(?<n>b))', 'J');
   assert.deepEqual(dup.names, ['n']);
+  assert.deepEqual(dup.groupNames, [undefined, 'n', 'n']);
   assert.equal(dup.exec('b')!.groups?.n, 'b');
+  // The first group of a name that took part wins, not the last.
+  assert.equal(dup.exec('a')!.groups?.n, 'a');
   assert.equal(new Regex('x').exec('x')!.groups, undefined);
+});
+
+test('a match has the own properties a RegExp match has', () => {
+  const m = new Regex('(?<a>x)|(?<b>y)|(z)').exec('y')!;
+  // Groups that did not take part are present and undefined, not holes.
+  assert.ok(Object.hasOwn(m, 1) && Object.hasOwn(m, 3));
+  assert.ok(Object.hasOwn(m.indices, 1) && Object.hasOwn(m.indices, 3));
+  assert.deepEqual(Object.keys(m.groups!), ['a', 'b']);
+  assert.deepEqual(Object.keys(m.indices.groups!), ['a', 'b']);
+  assert.deepEqual(new Regex('(x)(?<n>y)?').groupNames, [undefined, undefined, 'n']);
+  // With no named groups, `groups` is still an own property.
+  assert.ok(Object.hasOwn(new Regex('x').exec('x')!, 'groups'));
+  assert.ok(Object.hasOwn(new Regex('x').exec('x')!.indices, 'groups'));
+});
+
+test('a start offset outside the subject finds nothing and changes nothing', () => {
+  const re = new Regex('a');
+  for (const start of [-1, 2]) {
+    assert.equal(re.exec('a', start), null);
+    assert.equal(re.test('a', start), false);
+    assert.deepEqual([...re.matchAll('a', start)], []);
+    assert.equal(re.substitute('a', 'x', { start }), 'a');
+  }
+  // The end itself is a valid start.
+  assert.deepEqual(new Regex('$').exec('a', 1)?.index, 1);
+});
+
+test('a start offset inside a surrogate pair moves past the pair', () => {
+  const dot = new Regex('.');
+  assert.deepEqual(dot.exec('😀a', 1)?.index, 2);
+  assert.deepEqual([...dot.matchAll('😀a', 1)].map((m) => m[0]), ['a']);
+  assert.equal(dot.substitute('😀a', 'x', { start: 1 }), '😀x');
+  // Not when the two halves are not a pair, either way round.
+  assert.equal(new Regex('\\x{FFFD}').exec('a\udc00', 1)?.index, 1);
+  assert.equal(dot.exec('\ud800a', 1)?.index, 1);
+});
+
+test('errors say what they are', () => {
+  assert.throws(() => new Regex('('), { name: 'RegexSyntaxError' });
+  assert.throws(() => new Regex('(a+)+$', '', { matchLimit: 1 }).test('aab'), { name: 'RegexMatchError' });
 });
 
 test('flags', () => {
@@ -140,6 +184,11 @@ test('interleaving patterns does not disturb an iteration in progress', () => {
 });
 
 test('substitute', () => {
+  // Without `extended`, a backslash in the replacement is literal.
+  assert.equal(new Regex('a').substitute('a', '\\U\\n'), '\\U\\n');
+  // Output longer than one read chunk (8192 code units) comes back whole.
+  const long = new Regex('a').substitute('a'.repeat(10000), 'bc', { global: true });
+  assert.equal(long, 'bc'.repeat(10000));
   const re = new Regex('(?<k>\\w+)=(\\w+)');
   assert.equal(re.substitute('a=1 b=2', '$2:${k}'), '1:a b=2');
   assert.equal(re.substitute('a=1 b=2', '$2:${k}', { global: true }), '1:a 2:b');
@@ -149,6 +198,36 @@ test('substitute', () => {
   // Output longer than the first buffer guess.
   assert.equal(new Regex('a').substitute('aaaa', 'x'.repeat(100), { global: true }).length, 400);
   assert.throws(() => re.substitute('a=1', '${nope}'), RegexSyntaxError);
+});
+
+test('a malformed replacement is a syntax error, with PCRE2\'s code', () => {
+  const re = new Regex('(a)');
+  for (const [replacement, extended, code] of [
+    ['$', false, -35],
+    ['${nope}', false, -49],
+    ['$9', false, -49],
+    ['\\q', true, -57],
+    ['${1', false, -58],
+    ['${1:x}', true, -59],
+  ] as const) {
+    assert.throws(
+      () => re.substitute('a', replacement, { extended }),
+      (e: unknown) => e instanceof RegexSyntaxError && e.code === code,
+      `${replacement} (extended: ${extended})`,
+    );
+  }
+});
+
+test('an output too large for wasm memory throws rather than crashing', () => {
+  // 300 million code units is 600 MB, and the allocator rounds that up to a
+  // 1 GiB block: the module's whole memory ceiling. Repeating `$0` keeps this
+  // cheap, since once the output overflows PCRE2 only adds up lengths.
+  assert.throws(
+    () => new Regex('(?s).+').substitute('a'.repeat(100_000), '$0'.repeat(3000)),
+    (e: unknown) => e instanceof RegexMatchError && e.code === -48,
+  );
+  // The module still works afterwards.
+  assert.equal(new Regex('a').substitute('a', 'b'), 'b');
 });
 
 test('replace with a callback', () => {
@@ -183,6 +262,16 @@ test('match and depth limits stop a runaway match', () => {
   );
   // The default limits still stop it, eventually.
   assert.throws(() => new Regex('(a+)+$').test(`${'a'.repeat(40)}b`), RegexMatchError);
+  // The heap limit bounds backtracking memory whatever the other two allow.
+  assert.throws(
+    () => new Regex('(?:(?=(a))a)*c', '', { matchLimit: 1e9, depthLimit: 1e9 }).test('a'.repeat(2_000_000)),
+    (e: unknown) => e instanceof RegexMatchError && e.code === ERROR_HEAPLIMIT,
+  );
+  // substitute() runs under the same limits, and a limit is not a syntax error.
+  assert.throws(
+    () => limited.substitute(subject, 'x'),
+    (e: unknown) => e instanceof RegexMatchError && e.code === ERROR_MATCHLIMIT,
+  );
 });
 
 test('a lone surrogate matches as U+FFFD without shifting offsets', () => {
@@ -192,8 +281,23 @@ test('a lone surrogate matches as U+FFFD without shifting offsets', () => {
   assert.deepEqual(m.indices[1], [2, 3]);
 });
 
+test('limits: 0 means 1, a non-finite limit means the default', () => {
+  const catastrophic = `${'a'.repeat(28)}b`;
+  // A limit only bounds a match; one well inside it is unaffected.
+  assert.ok(new Regex('abc', '', { matchLimit: 1000, depthLimit: 1000 }).test('xxabc'));
+  assert.throws(() => new Regex('abc', '', { matchLimit: 0 }).test('xxabc'), RegexMatchError);
+  for (const matchLimit of [Infinity, NaN]) {
+    // Unlimited would run for minutes; the default stops it.
+    assert.throws(
+      () => new Regex('(a+)+$', '', { matchLimit }).test(catastrophic),
+      (e: unknown) => e instanceof RegexMatchError && e.code === ERROR_MATCHLIMIT,
+    );
+  }
+});
+
 test('free releases the pattern; using it afterwards throws', () => {
   const re = new Regex('a');
+  assert.equal(re.freed, false);
   re.free();
   re.free();
   assert.ok(re.freed);
@@ -204,6 +308,19 @@ test('a Regex from an earlier init is refused rather than run', () => {
   const before = new Regex('a');
   initSync(getModule());
   assert.throws(() => before.test('a'), /earlier init/);
+});
+
+test('freeing a Regex from an earlier init leaves the new instance alone', () => {
+  initSync(getModule());
+  const before = new Regex('x+');
+  initSync(getModule());
+  // Allocated in the new instance where `before` was in the old one, so a
+  // free that reached this memory would release it.
+  const live = new Regex('b+');
+  before.free();
+  assert.ok(before.freed);
+  new Regex('zzzz');
+  assert.equal(live.exec('abbbc')?.[0], 'bbb');
 });
 
 test('long subjects iterate in linear time', () => {

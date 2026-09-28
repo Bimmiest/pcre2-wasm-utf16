@@ -42,10 +42,20 @@
     "build:wasm": "build/build.sh",
     "check:wasm": "build/build.sh --check",
     "test": "node --test test/*.test.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "lint": "eslint .",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=98 test/*.test.ts",
+    "test:mutation": "stryker run",
+    "check:package": "node scripts/check-package-contents.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stryker-mutator/core": "^10.0.0",
     "@types/node": "^24.19.0",
-    "typescript": "~5.9.3"
+    "eslint": "^10.11.0",
+    "fast-check": "^4.10.2",
+    "globals": "^17.12.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.1"
   }
 }

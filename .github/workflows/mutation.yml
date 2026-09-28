@@ -1,0 +1,53 @@
+name: Mutation
+
+# Coverage says a line ran; it does not say a test would notice if the line
+# were wrong. Stryker answers that by changing src/ one small edit at a time
+# and checking that some test fails. The library is one file, so every run
+# mutates all of it; a run takes about ten minutes on a hosted runner, which
+# is why it lives here and not in ci.yml.
+on:
+  schedule:
+    # After ci.yml's weekly run, so the two do not share a queue.
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'stryker.config.mjs'
+      - '.github/workflows/mutation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Mutation test
+        # Fails below the floor (thresholds.break in stryker.config.mjs).
+        run: npm run test:mutation
+
+      - name: Upload mutation report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 14
