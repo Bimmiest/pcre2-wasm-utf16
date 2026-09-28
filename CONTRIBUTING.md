@@ -58,13 +58,13 @@ Each test file runs in its own process, so a file's module state (whether
 
 `npm run test:mutation` runs [Stryker](https://stryker-mutator.io): it changes
 `src/` one small edit at a time and checks that some test fails. A full run takes
-about four minutes on 16 cores and about ten on a hosted runner. `mutation.yml`
+about five minutes on 16 cores and about 25 on a hosted runner. `mutation.yml`
 runs it weekly and on pull requests that change `src/`, `test/` or the Stryker
 config. It fails below the floor in `stryker.config.mjs` (90%), and the HTML
 report is uploaded as an artifact.
 
-The score was 91.1% when the floor was set, and every survivor then was a
-mutant that no test can tell apart from the original. They come in these
+The score was 90.9% on CI when the floor was set, and every survivor then was
+a mutant that no test can tell apart from the original. They come in these
 kinds:
 
 - **Bounds that make no difference.** An index one past the end of a typed
