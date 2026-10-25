@@ -1,6 +1,8 @@
 # Changelog
 
-All notable changes to pcre2-wasm-utf16 are documented here, newest first.
+This file records the notable changes to pcre2-wasm-utf16, newest first. Each entry says what changed for a user, in one or two sentences, with the issue link. The reasons for larger design choices are in [`docs/adr/`](docs/adr/README.md).
+
+A release changes `Unreleased` to `x.y.z — YYYY-MM-DD`, and adds a new `Unreleased` above it ([CONTRIBUTING](CONTRIBUTING.md#releases)).
 
 ---
 

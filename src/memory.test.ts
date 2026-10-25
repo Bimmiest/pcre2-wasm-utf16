@@ -1,13 +1,12 @@
 // Wasm memory is invisible to the garbage collector, so a missed free is a
 // leak nothing else reports. This file wraps WebAssembly.Instance before the
 // library loads, to watch the module's memory, then checks that repeating
-// each operation many times leaves it the size it was. (node:test runs each
-// file in its own process, so the wrapper reaches no other test.)
-import { test } from 'node:test';
+// each operation many times leaves it the size it was. The wrapper is put
+// back as soon as the module is instantiated, so it reaches no other test.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { setFlagsFromString } from 'node:v8';
-import { runInNewContext } from 'node:vm';
+import { test } from 'vitest';
+import { collect } from './test/gc.ts';
 
 type Instance = { exports: { memory?: { buffer: ArrayBuffer } } };
 type InstanceConstructor = new (module: object, imports: object) => Instance;
@@ -21,13 +20,14 @@ wasm.Instance = function (module: object, imports: object) {
   return instance;
 } as unknown as InstanceConstructor;
 
-const { initSync, Regex, RegexSyntaxError, version } = await import('../src/index.ts');
+const { initSync, Regex, RegexSyntaxError, version } = await import('./index.ts');
 initSync(readFileSync(new URL('../pcre2.wasm', import.meta.url)));
+wasm.Instance = Original;
 
 const size = () => memory!.buffer.byteLength;
 
 /** Grows memory to its working size, then checks that many more rounds leave it there. */
-function assertNoGrowth(label: string, operation: (i: number) => void) {
+function expectNoGrowth(label: string, operation: (i: number) => void) {
   for (let i = 0; i < 200; i++) operation(i);
   const before = size();
   // Enough rounds that a leak of even a few bytes each would outgrow the
@@ -37,22 +37,22 @@ function assertNoGrowth(label: string, operation: (i: number) => void) {
 }
 
 test('compiling and freeing a pattern leaks nothing', () => {
-  assertNoGrowth('compile and free', (i) => new Regex(`(?<g${i % 7}>a|b)+c`).free());
+  expectNoGrowth('compile and free', (i) => new Regex(`(?<g${i % 7}>a|b)+c`).free());
 });
 
 test('a pattern PCRE2 rejects leaks nothing', () => {
-  assertNoGrowth('rejected pattern', () => {
+  expectNoGrowth('rejected pattern', () => {
     assert.throws(() => new Regex('ab(c'), RegexSyntaxError);
   });
 });
 
 test('matching, iterating and replacing leak nothing', () => {
   const re = new Regex('(\\w)(\\d)?');
-  assertNoGrowth('match', (i) => {
+  expectNoGrowth('match', (i) => {
     // A different subject each time, so each call copies one in.
     const subject = `x${i} y${i}`;
     re.exec(subject);
-    for (const _ of re.matchAll(subject)) void _;
+    Array.from(re.matchAll(subject));
     re.substitute(subject, '[$1]', { global: true });
     re.replace(subject, (m) => m[0].toUpperCase(), true);
   });
@@ -60,7 +60,7 @@ test('matching, iterating and replacing leak nothing', () => {
 
 test('failed replacements and version() leak nothing', () => {
   const re = new Regex('(a)');
-  assertNoGrowth('errors and version', () => {
+  expectNoGrowth('errors and version', () => {
     assert.throws(() => re.substitute('a', '${nope}'), RegexSyntaxError);
     version();
   });
@@ -78,15 +78,6 @@ test('a subject that outgrows its buffer frees the old one', () => {
 });
 
 test('a Regex collected without free() is released, once', async () => {
-  // The garbage collector, on demand.
-  setFlagsFromString('--expose-gc');
-  const gc = runInNewContext('gc') as () => void;
-  const collect = async () => {
-    for (let i = 0; i < 5; i++) {
-      gc();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-  };
   const abandon = (n: number) => {
     for (let i = 0; i < n; i++) new Regex(`(?<g>a|b)+c${i % 7}`);
   };

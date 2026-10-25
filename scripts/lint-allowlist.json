@@ -1,0 +1,8 @@
+{
+  "$comment": "The lint findings in code that was written before a rule was adopted, by file and by rule, as counted on the day the rule arrived. eslint.config.js turns each listed rule off for each listed file, and scripts/lint-allowlist.test.mjs fails when a count differs from what the rule finds: higher is new code that gets no exception, lower is a fix that must lower the count here in the same change. The list only gets shorter (CONTRIBUTING, Code style).",
+  "files": {
+    "src/index.ts": {
+      "@typescript-eslint/no-non-null-assertion": 10
+    }
+  }
+}

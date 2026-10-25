@@ -22,6 +22,8 @@
   },
   "files": [
     "src",
+    "!src/**/*.test.ts",
+    "!src/test/**",
     "pcre2.wasm",
     "pcre2.wasm.sha256",
     "build",
@@ -39,23 +41,33 @@
     "webassembly"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "build:wasm": "build/build.sh",
     "check:wasm": "build/build.sh --check",
-    "test": "node --test test/*.test.ts",
-    "typecheck": "tsc -p .",
+    "check:package": "node scripts/check-package-contents.mjs",
+    "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=98 test/*.test.ts",
-    "test:mutation": "stryker run",
-    "check:package": "node scripts/check-package-contents.mjs"
+    "format": "prettier --write \"**/*.{ts,mts,js,mjs}\"",
+    "format:check": "prettier --check \"**/*.{ts,mts,js,mjs}\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:mutation": "stryker run"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@stryker-mutator/core": "^10.0.0",
-    "@types/node": "^24.19.0",
-    "eslint": "^10.11.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.0.3",
+    "@vitest/eslint-plugin": "^1.6.27",
+    "eslint": "^10.12.0",
+    "eslint-plugin-import-x": "^4.17.1",
     "fast-check": "^4.10.2",
-    "globals": "^17.12.0",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.70.1"
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
   }
 }

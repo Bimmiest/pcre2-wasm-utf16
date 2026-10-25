@@ -1,18 +1,17 @@
 // @ts-check
 // Mutation testing: `npm run test:mutation`. Coverage says which lines ran;
 // this says whether any test would notice one of them being wrong. See
-// CONTRIBUTING.md for how to read a run and when CI runs it.
+// docs/testing.md for how to read a run and when CI runs it.
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
-  // node:test has no Stryker runner, so each mutant runs the whole suite as a
-  // command. The suite takes well under a second, which keeps that affordable.
-  testRunner: 'command',
-  // One test file at a time: Stryker already runs a mutant per core, and a
-  // process per file on top of that starves them into false timeouts.
-  commandRunner: { command: 'node --test --test-concurrency=1 test/*.test.ts' },
-  coverageAnalysis: 'off',
+  // The Vitest runner reads which tests cover each mutant, and runs only those
+  // tests for it, in a worker that it keeps between mutants.
+  testRunner: 'vitest',
+  plugins: ['@stryker-mutator/vitest-runner'],
+  coverageAnalysis: 'perTest',
 
-  mutate: ['src/**/*.ts'],
+  // The library, not the tests that sit next to it.
+  mutate: ['src/**/*.ts', '!src/**/*.test.ts', '!src/test/**'],
 
   // A mutant that makes the suite hang is killed by timing out, after the
   // suite's own time times this factor plus timeoutMS. Stryker's default
@@ -27,8 +26,10 @@ export default {
   // `break` is the floor: below it the run exits non-zero, which fails the
   // mutation workflow. Measured, not chosen; raise it when tests raise the
   // score, never lower it to make a branch green.
-  // 90.9% on CI when set (326 killed, 23 timed out, 35 survived). Every
-  // survivor is a mutant no test can tell apart from the original;
-  // CONTRIBUTING.md says which kinds they are.
+  // 90.9% on CI when set, with the command runner. 90.36% on 2026-10-25 with
+  // the Vitest runner, on four cores in 4.5 minutes: 329 killed, 18 timed
+  // out, 35 survived, and 2 with no coverage (the two unreachable messages
+  // in errorMessage()). docs/testing.md lists the kinds of survivor that no
+  // test can kill.
   thresholds: { high: 95, low: 90, break: 90 },
 };

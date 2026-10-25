@@ -2,17 +2,17 @@
 // invariants rather than hand-picked examples. The seed is fixed so CI is
 // deterministic; FC_SEED=<n> explores other inputs, and FC_RUNS=<n> changes how
 // many (a failure prints the seed and path that reproduce it).
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { test } from 'vitest';
 import fc from 'fast-check';
-import { initSync, Regex, type Match } from '../src/index.ts';
+import { initSync, Regex, type Match } from './index.ts';
 
 initSync(readFileSync(new URL('../pcre2.wasm', import.meta.url)));
 
 const seed = Number(process.env['FC_SEED'] ?? 20260928);
 const numRuns = Number(process.env['FC_RUNS'] ?? 400);
-const check = (property: fc.IRawProperty<unknown>) => fc.assert(property, { seed, numRuns });
+const expectProperty = (property: fc.IProperty<unknown>) => fc.assert(property, { seed, numRuns });
 
 // ---------------------------------------------------------------------------
 // Subjects: a small alphabet, so generated patterns hit often. It has ASCII
@@ -88,19 +88,17 @@ const { pattern } = fc.letrec<{ pattern: Node; group: Node; quantified: Node; al
       tie('alternation'),
       tie('sequence'),
     ),
-    group: fc
-      .tuple(fc.constantFrom('(', '(?:', '(?=', '(?!'), tie('pattern'))
-      .map(([open, inner]): Node => {
-        const assertion = open === '(?=' || open === '(?!';
-        return {
-          src: `${open}${inner.src})`,
-          nullable: assertion || inner.nullable,
-          captures: open === '(' || inner.captures,
-          captureInQuantifier: inner.captureInQuantifier,
-          // An assertion can match empty, so it is never quantified.
-          atom: !assertion && !inner.nullable,
-        };
-      }),
+    group: fc.tuple(fc.constantFrom('(', '(?:', '(?=', '(?!'), tie('pattern')).map(([open, inner]): Node => {
+      const assertion = open === '(?=' || open === '(?!';
+      return {
+        src: `${open}${inner.src})`,
+        nullable: assertion || inner.nullable,
+        captures: open === '(' || inner.captures,
+        captureInQuantifier: inner.captureInQuantifier,
+        // An assertion can match empty, so it is never quantified.
+        atom: !assertion && !inner.nullable,
+      };
+    }),
     quantified: fc
       .tuple(tie('pattern'), fc.constantFrom(...QUANTIFIERS), fc.boolean())
       .filter(([inner]) => !inner.nullable)
@@ -114,25 +112,21 @@ const { pattern } = fc.letrec<{ pattern: Node; group: Node; quantified: Node; al
           atom: false,
         };
       }),
-    alternation: fc.tuple(tie('pattern'), tie('pattern')).map(
-      ([a, b]): Node => ({
-        src: `(?:${a.src}|${b.src})`,
-        nullable: a.nullable || b.nullable,
-        captures: a.captures || b.captures,
-        captureInQuantifier: a.captureInQuantifier || b.captureInQuantifier,
-        atom: !(a.nullable || b.nullable),
-      }),
-    ),
-    sequence: fc.array(tie('pattern'), { minLength: 2, maxLength: 3 }).map(
-      (parts): Node => ({
-        // An alternation is always grouped, so parts concatenate as they are.
-        src: parts.map((p) => p.src).join(''),
-        nullable: parts.every((p) => p.nullable),
-        captures: parts.some((p) => p.captures),
-        captureInQuantifier: parts.some((p) => p.captureInQuantifier),
-        atom: false,
-      }),
-    ),
+    alternation: fc.tuple(tie('pattern'), tie('pattern')).map(([a, b]): Node => ({
+      src: `(?:${a.src}|${b.src})`,
+      nullable: a.nullable || b.nullable,
+      captures: a.captures || b.captures,
+      captureInQuantifier: a.captureInQuantifier || b.captureInQuantifier,
+      atom: !(a.nullable || b.nullable),
+    })),
+    sequence: fc.array(tie('pattern'), { minLength: 2, maxLength: 3 }).map((parts): Node => ({
+      // An alternation is always grouped, so parts concatenate as they are.
+      src: parts.map((p) => p.src).join(''),
+      nullable: parts.every((p) => p.nullable),
+      captures: parts.some((p) => p.captures),
+      captureInQuantifier: parts.some((p) => p.captureInQuantifier),
+      atom: false,
+    })),
   }),
 );
 
@@ -146,7 +140,9 @@ function boundaries(s: string): number[] {
 }
 
 function splitsPair(s: string, offset: number): boolean {
-  return offset > 0 && offset < s.length && /[\ud800-\udbff]/.test(s[offset - 1]!) && /[\udc00-\udfff]/.test(s[offset]!);
+  return (
+    offset > 0 && offset < s.length && /[\ud800-\udbff]/.test(s[offset - 1]!) && /[\udc00-\udfff]/.test(s[offset]!)
+  );
 }
 
 /** The first match from `start`, in the shape both engines can be compared in. */
@@ -163,7 +159,7 @@ function viaJs(src: string, flagLetters: string, s: string, start: number, withG
 }
 
 test('generated patterns match what JavaScript matches, where the two agree by design', () => {
-  check(
+  expectProperty(
     fc.property(pattern, flags, subject, fc.nat(), (p, f, s, pick) => {
       const starts = boundaries(s);
       const start = starts[pick % starts.length]!;
@@ -226,7 +222,7 @@ function assertWellFormed(m: Match, s: string) {
 }
 
 test('every match is well formed: text is the span, and spans never split a character', () => {
-  check(
+  expectProperty(
     fc.property(pcrePattern, pcreFlags, subject, (src, f, s) => {
       const re = new Regex(src, f);
       try {
@@ -248,23 +244,30 @@ test('every match is well formed: text is the span, and spans never split a char
 });
 
 test('substitute() and replace() replace the same matches', () => {
-  check(
-    fc.property(pcrePattern, pcreFlags, subject, fc.constantFrom('', 'X', 'é😀'), fc.boolean(), (src, f, s, r, global) => {
-      const re = new Regex(src, f);
-      try {
-        assert.equal(
-          re.substitute(s, r, { global }),
-          re.replace(s, () => r, global),
-        );
-      } finally {
-        re.free();
-      }
-    }),
+  expectProperty(
+    fc.property(
+      pcrePattern,
+      pcreFlags,
+      subject,
+      fc.constantFrom('', 'X', 'é😀'),
+      fc.boolean(),
+      (src, f, s, r, global) => {
+        const re = new Regex(src, f);
+        try {
+          assert.equal(
+            re.substitute(s, r, { global }),
+            re.replace(s, () => r, global),
+          );
+        } finally {
+          re.free();
+        }
+      },
+    ),
   );
 });
 
 test('exec() from any offset finds the first match at or after it', () => {
-  check(
+  expectProperty(
     fc.property(pcrePattern, subject, fc.nat(), (src, s, pick) => {
       const start = pick % (s.length + 1);
       const re = new Regex(src);
@@ -286,7 +289,7 @@ test('a subject loaded for an earlier call never leaks into a later one', () => 
   // The module keeps the last subject in wasm memory and reuses it when the
   // next call passes the same string. A different string, longer or shorter,
   // must be matched as itself.
-  check(
+  expectProperty(
     fc.property(pattern, subject, subject, (p, s1, s2) => {
       const re = new Regex(p.src);
       try {
@@ -312,15 +315,18 @@ test('a lone surrogate is one character, matched as U+FFFD', () => {
       maxLength: 12,
     })
     .map((cs) => cs.join(''));
-  check(
+  expectProperty(
     fc.property(withLone, (s) => {
       const dot = new Regex('.', 's');
       const fffd = new Regex('\\x{FFFD}');
       try {
         // `.` takes one code point at a time, as JS's string iterator does.
-        assert.deepEqual([...dot.matchAll(s)].map((m) => m[0]), [...s]);
+        assert.deepEqual(
+          [...dot.matchAll(s)].map((m) => m[0]),
+          Array.from(s),
+        );
         // Every lone surrogate, and every real U+FFFD, matches U+FFFD.
-        const expected = [...s].filter((c) => c === '�' || (c.length === 1 && /[\ud800-\udfff]/.test(c))).length;
+        const expected = Array.from(s).filter((c) => c === '�' || (c.length === 1 && /[\ud800-\udfff]/.test(c))).length;
         assert.equal([...fffd.matchAll(s)].length, expected);
       } finally {
         dot.free();
