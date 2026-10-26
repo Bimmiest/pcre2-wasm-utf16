@@ -24,6 +24,7 @@ export type CompiledModule = object;
 export type ModuleBytes = ArrayBuffer | ArrayBufferView;
 
 interface WasmApi {
+  Memory: new (descriptor: { initial: number; maximum: number }) => { buffer: ArrayBuffer };
   Module: new (bytes: ModuleBytes) => CompiledModule;
   Instance: new (module: CompiledModule, imports: object) => { exports: unknown };
   compile(bytes: ModuleBytes): Promise<CompiledModule>;
@@ -71,6 +72,35 @@ interface Exports {
 
 const WA = (globalThis as unknown as { WebAssembly: WasmApi }).WebAssembly;
 
+/** A WebAssembly page. */
+const PAGE_BYTES = 65536;
+/** The memory the module starts with: `--initial-memory` in build/build.sh. */
+const INITIAL_MEMORY_BYTES = 2 * 1024 * 1024;
+/** The most the module can grow to, and the default limit: `--max-memory` in build/build.sh. */
+export const MAX_MEMORY_BYTES = 1024 * 1024 * 1024;
+
+/** Options for {@link init} and {@link initSync}. */
+export interface InitOptions {
+  /**
+   * The most linear memory this instance may use, in bytes, rounded down to
+   * whole 64 KiB pages: compiled patterns, subjects and match state together.
+   * An allocation past it fails as a {@link RegexMatchError} with PCRE2's
+   * no-memory code, as one past the module's own maximum does. From 2 MiB to
+   * {@link MAX_MEMORY_BYTES}, which is the default.
+   */
+  maxMemoryBytes?: number;
+}
+
+/** The module's one import: a memory this host creates, with the maximum it chooses. */
+function imports(options: InitOptions | undefined): object {
+  const max = options?.maxMemoryBytes ?? MAX_MEMORY_BYTES;
+  if (!(max >= INITIAL_MEMORY_BYTES && max <= MAX_MEMORY_BYTES)) {
+    throw new RangeError(`maxMemoryBytes must be from ${INITIAL_MEMORY_BYTES} to ${MAX_MEMORY_BYTES}, got ${max}`);
+  }
+  const memory = new WA.Memory({ initial: INITIAL_MEMORY_BYTES / PAGE_BYTES, maximum: Math.floor(max / PAGE_BYTES) });
+  return { env: { memory } };
+}
+
 let wasm: Exports | null = null;
 let compiledModule: CompiledModule | null = null;
 /** Bumped on every init, so a Regex from an earlier instance is never run
@@ -95,18 +125,19 @@ function adopt(module: CompiledModule, exports: unknown): void {
  * For workers and Node; a browser's main thread must use {@link init}, since
  * it refuses synchronous compilation of anything but a tiny module.
  */
-export function initSync(source: CompiledModule | ModuleBytes): void {
+export function initSync(source: CompiledModule | ModuleBytes, options?: InitOptions): void {
   const module = isBytes(source) ? new WA.Module(source) : source;
-  adopt(module, new WA.Instance(module, {}).exports);
+  adopt(module, new WA.Instance(module, imports(options)).exports);
 }
 
 /** Instantiate from a compiled module, the module's bytes, or a promise of either. */
 export async function init(
   source: CompiledModule | ModuleBytes | PromiseLike<CompiledModule | ModuleBytes>,
+  options?: InitOptions,
 ): Promise<void> {
   const resolved = await source;
   const module = isBytes(resolved) ? await WA.compile(resolved) : resolved;
-  adopt(module, (await WA.instantiate(module, {})).exports);
+  adopt(module, (await WA.instantiate(module, imports(options))).exports);
 }
 
 export function isReady(): boolean {

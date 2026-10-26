@@ -8,6 +8,14 @@ A release changes `Unreleased` to `x.y.z — YYYY-MM-DD`, and adds a new `Unrele
 
 ## Unreleased
 
+### Added
+
+- **`maxMemoryBytes`**, an option of `init` and `initSync` ([#12](https://github.com/Bimmiest/pcre2-wasm-utf16/issues/12)). It sets the most wasm memory an instance can use, from 2 MiB to 1 GiB. An allocation past it throws `RegexMatchError` with PCRE2's no-memory code.
+
+### Changed
+
+- **The module imports its memory** ([#12](https://github.com/Bimmiest/pcre2-wasm-utf16/issues/12)). `init` and `initSync` make it, so code that loads the package is not affected. Code that instantiates `pcre2.wasm` without the package must give it `env.memory`: an initial 2 MiB and a maximum of at most 1 GiB.
+
 ---
 
 ## 0.1.0 — 2026-09-28

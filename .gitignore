@@ -24,5 +24,9 @@ reports/
 .DS_Store
 *.log
 
+# What `build/build.sh --check` keeps when its build differs from the
+# committed module.
+pcre2.rebuilt.wasm
+
 # Stryker's sandbox: a copy of the tree for each run (npm run test:mutation).
 .stryker-tmp/

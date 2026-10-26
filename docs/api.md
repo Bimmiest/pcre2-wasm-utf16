@@ -29,6 +29,21 @@ initSync(readFileSync(new URL('../pcre2.wasm', import.meta.url)));
 Before `init` or `initSync` completes, each entry point throws an error that
 tells you to call `init()`. `isReady()` tells you if the module is loaded.
 
+## Memory limit
+
+Each instance has its own wasm memory. Compiled patterns, subjects and match
+state use it. By default the memory can grow to 1 GiB (`MAX_MEMORY_BYTES`).
+To set a lower limit, give `maxMemoryBytes` to `init` or `initSync`:
+
+```ts
+// A worker that runs patterns from a user: 256 MiB at most.
+initSync(event.data.pcre2, { maxMemoryBytes: 256 * 1024 * 1024 });
+```
+
+The limit is from 2 MiB to 1 GiB, in 64 KiB pages. When an allocation goes
+past it, the call throws `RegexMatchError` with code -48
+(`PCRE2_ERROR_NOMEMORY`). The instance continues to work.
+
 ## Use
 
 ```ts
