@@ -6,7 +6,9 @@
 // compliance without failing anything else.
 import { execFileSync } from 'node:child_process';
 
-const [pack] = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8' }));
+const [pack] = JSON.parse(
+  execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8' }),
+);
 const shipped = new Set(pack.files.map((f) => f.path));
 
 const required = [
@@ -21,7 +23,20 @@ const required = [
   'build/build.sh',
 ];
 // Development-only material has no business in an install.
-const forbidden = [/^test\//, /^scripts\//, /^\.github\//, /^node_modules\//, /^coverage\//, /^reports\//, /^\.stryker-tmp\//, /config\.(m?js|ts)$/];
+const forbidden = [
+  // The tests sit next to the code in src/, and package.json's `files`
+  // leaves them out with a negated glob.
+  /\.test\.(m?js|ts)$/,
+  /^src\/test\//,
+  /^docs\//,
+  /^scripts\//,
+  /^\.github\//,
+  /^node_modules\//,
+  /^coverage\//,
+  /^reports\//,
+  /^\.stryker-tmp\//,
+  /config\.(m?js|ts)$/,
+];
 
 const problems = [
   ...required.filter((path) => !shipped.has(path)).map((path) => `missing: ${path}`),

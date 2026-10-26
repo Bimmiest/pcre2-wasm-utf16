@@ -1,126 +1,393 @@
 # Contributing
 
-## Getting set up
+This file is short on purpose: people do not apply a document that they do
+not finish. Each rule gives its reason. When the reason stops being true,
+remove the rule. When a check enforces a rule, this file names the check.
+For the other rules, the last person who changed the text keeps it true.
 
-Use the Node version in `.nvmrc`, then:
+The conventions come from
+[`repo-template`](https://github.com/Bimmiest/repo-template), and the checks
+come from [`shared-workflows`](https://github.com/Bimmiest/shared-workflows)
+([ADR 0001](docs/adr/0001-conventions-come-from-the-template-and-the-shared-workflows.md)).
+If a second repository can use a convention, change it in those repositories
+first.
 
-```sh
-npm install
-npm test
+## Issues first
+
+Before you write the code, open an issue for each change that is larger than
+a typo. The issue is where people argue about the reason for a change, while
+the change is still cheap. An issue that you open after the work, to record
+what you built, reverses the purpose of this rule. A closed issue is not a
+substitute: new work gets a new issue.
+
+An open question that must have an answer before the code is written is an
+issue with the label `decision`. The answer becomes an ADR
+([Decisions](#decisions)).
+
+## Branches
+
+`main` is the only long-lived branch. Each change goes to `main` through a
+pull request.
+
+```
+<type>/<short-description>-<issue-number>
 ```
 
-Rebuilding `pcre2.wasm` also needs clang 18 with the wasm32 target and
-`wasm-ld` (Debian/Ubuntu: `clang-18 lld-18`). Nothing else does: the module is
-committed.
+| Type | For |
+|---|---|
+| `feature/` | A new capability |
+| `fix/` | A defect in something that shipped |
+| `refactor/` | The same behaviour, with a better shape |
+| `docs/` | Documentation, ADRs and this file |
+| `ci/` | Workflows, checks and build tools |
+| `chore/` | Dependencies, configuration and maintenance |
 
-## The CI checks
+Write the description in lower-case kebab case. Omit the issue number only
+when there is no issue, and then add the label `no-issue` to the pull
+request. CI's **PR hygiene** check enforces the pattern, the number and the
+issue link in the description. The check runs again when the description or
+the labels change. Thus an edit, not a push, fixes most failures.
 
-`ci.yml` runs these on every pull request and push to `main`, and weekly:
+**Use one branch for each coherent piece of work:** a feature, a fix or a
+decision. Work that depends on other work goes on the same branch. Work that
+is only near other work does not.
 
-| Check | Command | What it guards |
+If a tool gave you a branch name that does not conform (for example an
+automatic `claude/…` name), rename the branch. Then open the pull request
+again from the renamed branch, and say so in the description. GitHub cannot
+change the head branch of a pull request.
+
+## Commits
+
+Write the subject in the imperative. In the body, say **why**, and say what
+the choice cost. A message that only says what changed repeats the diff. The
+test: a person who runs `git blame` on this line in a year must find the
+reason, not a copy of the change.
+
+- Give each issue its own closing keyword: `Closes #1, closes #2`.
+  `Closes #1, #2` closes only #1.
+- When an operator must do something because of a change, add a line of its
+  own: `Upgrade-Note: <what to do, in one sentence>`. Examples are a manual
+  step, a variable with a new name or meaning, or stored data to remove.
+  A default that changes what a deployment does is another example. Add the line only when an
+  operator must act.
+- Put a commit that only changes formatting in `.git-blame-ignore-revs`: one
+  hash on each line, oldest first, under a comment that names it.
+
+GitHub squash-merges a pull request, with the commit messages of the branch
+as the body. Thus `main` keeps what you write when you commit, and an
+`Upgrade-Note:` line in any commit stays in the history. The pull request
+description is for the reviewer. Write both to the standard above.
+
+## Pull requests
+
+Run all of these commands before you open a pull request. CI runs the same
+commands and the shared checks below.
+
+```bash
+npm run lint
+npm run format:check
+npm run typecheck
+npm run test:coverage
+npm run build
+```
+
+The pull request template has four sections:
+
+- **What and why**, which includes what the change cost.
+- **Decisions**: link the ADR, or delete the section.
+- **Verification**: what you ran, and what it said. "Tests pass" is a claim.
+  The output is the evidence.
+- **Not done**: what a reader can expect to find here that is not here.
+
+If you change `build/` or `pcre2.wasm`, also run `npm run check:wasm`
+([Building the module](docs/building.md)). It needs clang 18, so it is not
+one of the five.
+
+Delete a section that does not apply. An empty heading is worse than no
+heading.
+
+Prettier sets the formatting. Reviews do not discuss formatting.
+
+### What CI runs
+
+| Job | What makes it fail | Where the rule is |
 |---|---|---|
-| Lint | `npm run lint` | ESLint with typescript-eslint's type-checked rules. The library may use no environment's globals, so it runs in a browser, a worker and Node alike. |
-| Type-check | `npm run typecheck` | `tsc` over `src` and `test`. |
-| Tests, with coverage | `npm run test:coverage` | The tests below, failing under 100% of lines, 100% of functions or 98% of branches. |
-| Package contents | `npm run check:package` | What `npm pack` ships, which is also what a git-dependency install receives. The licence files must be in it and development files must not. |
-| Reproducible build | `npm run check:wasm` | Rebuilds `pcre2.wasm` from the pinned PCRE2 release and fails unless it is byte-identical to the committed file and its recorded SHA-256. The same build holds this repository's own C (`build/bridge.c`, `build/libc/`) to `-Wall -Wextra -Werror`. |
-| Audit | `npm audit` | Fails on a high or critical advisory in a production dependency (there are none today), and reports dev-only ones without failing. |
+| `verify` | Lint, format, types, the test suite and its coverage floor, a floor that is out of date, the build, the contents of the package, the documentation checks below, and the licences of production dependencies | The scripts in `package.json`, `vitest.config.ts`, `scripts/check-package-contents.mjs`, `.docs-check.json`, `.licence-allowlist.json` |
+| `wasm` | A rebuilt `pcre2.wasm` that is not byte-identical to the committed file, or a warning in the C of this repository | `build/build.sh`, [docs/building.md](docs/building.md) |
+| `audit` | A high or critical advisory in a production dependency, with no exception | `.audit-exceptions.json` |
+| `dependency-review` | A pull request that adds a dependency with a high advisory | The GitHub dependency graph |
+| `workflow-lint` | actionlint and zizmor findings in `.github/` | The workflows |
+| `PR hygiene` | A branch or an issue link that does not follow the convention above. A change to a shipped file with no `CHANGELOG.md` entry, unless the pull request has the label `no-changelog` | This file, `pr-hygiene.yml` |
+| `Security` | A secret anywhere in the history, or a fixable CRITICAL or HIGH vulnerability or misconfiguration in the tree | `.gitleaks.toml`, `.trivyignore.yaml` |
+| `Scorecard` (weekly and on `main`) | Nothing. It reports the OpenSSF Scorecard checks, to the README badge and to code scanning | The repository settings and the workflows |
+| `Mutation` (weekly, and on a pull request that changes `src/`) | A mutation score below the floor in `stryker.config.mjs`. It is not a required check | [docs/testing.md](docs/testing.md) |
+| `Settings` (weekly) | A repository setting that differs from the checklist, or that the token cannot read. A failure opens an issue | `.repo-settings.json` |
 
-The coverage floors are measured, not chosen. Raise them when tests raise
-coverage, and never lower them to make a branch pass.
+A red shared check tells you what to change. Each job can fail
+independently, on purpose: a new advisory must not hide the result of the
+test suite. If the repository gets a browser suite, it is a job of its own
+for the same reason.
 
-Mutation testing runs in its own workflow; see below.
+## Tests
 
-## The tests
+- Use Vitest, with the `node` environment, and put each `*.test.ts` file
+  next to the code that it tests. A test that needs a DOM selects it in its
+  own file. `package.json` keeps the tests out of the package.
+- The tests use `node:assert/strict` or `expect`. Lint accepts both as an
+  assertion ([ADR 0003](docs/adr/0003-the-package-adopts-the-template-and-keeps-its-own-build.md)).
+- Each test file has its own module graph. Thus a file that calls `init`,
+  or that patches a global, does not change another file.
+  [docs/testing.md](docs/testing.md) tells you what each file tests.
+- **The coverage floor is a ratchet, in both directions.** `vitest.config.ts`
+  fails a run that is below the floor. CI's coverage ratchet fails a run that
+  is more than one point above the floor, and prints the thresholds to
+  write. Raise a floor in the change that raises the coverage. Do not lower
+  a floor to make a branch green. Do not exclude code to make the numbers
+  look better. Each exclusion has its reason next to it.
+- **Lint checks what makes a test a test.** These fail lint: a case with no
+  assertion, two cases with one name, and an `expect` that is not finished
+  or not awaited. Give a helper that asserts for the test a name
+  that starts with `expect`.
+- **A test does not measure its own time.** Do not use `performance.now()`,
+  `Date.now()` or `toBeLessThan(<ms>)` in a unit test. A wall-clock
+  assertion passes on a fast machine and fails on the CI runner. Count the
+  work instead, or make the input so large that the bad version cannot
+  finish within the timeout. To prove that a new bound works, put the bug
+  back once and see the test fail.
+- **Share the test helpers.** Keep one builder for each domain object in
+  `src/test/`. A new test file uses those builders, not its own literals.
+- **CI checks the order and the environment of the tests.** Each week, CI
+  runs the suite in a random order, in a different time zone and locale. It
+  prints the seed and the command that runs the same order again. A test
+  that passes only in alphabetical order and in UTC does not test what it
+  claims.
+- **Mutation testing** is for code where a wrong answer is silent. Here,
+  that is all of `src/index.ts`. Stryker runs over that code each week, and
+  on a pull request that changes `src/`. Its floor is a ratchet, like the coverage
+  floor, and it does not block pull requests. A mutant that survives is a
+  test to write, or an equivalent mutant that you record with its reason.
+  Kill a mutant with a test that asserts behaviour, not with a test that
+  only moves the number. [docs/testing.md](docs/testing.md) lists the
+  survivors that no test can kill.
 
-Each test file runs in its own process, so a file's module state (whether
-`init` has run, a patched global) does not reach the others.
+## Code style
 
-- `test/regex.test.ts`: an example for every part of the API, and for the PCRE
-  semantics JavaScript's `RegExp` lacks.
-- `test/properties.test.ts`: property-based tests with
-  [fast-check](https://fast-check.dev). One compares first matches with
-  JavaScript's `RegExp` over a generated grammar of the constructs the two are
-  specified to agree on. The comments there say what the grammar leaves out
-  and why. The others check invariants over a wider grammar: a match's text
-  is its span, no offset splits a surrogate pair, `substitute` and `replace`
-  replace the same matches, and a cached subject never leaks into a later
-  call. The seed is fixed so CI is deterministic. `FC_SEED=<n>` and
-  `FC_RUNS=<n>` explore further, and a failure prints the seed and path that
-  reproduce it.
-- `test/memory.test.ts`: leak checks. Wasm memory is invisible to the garbage
-  collector, so this file watches the module's memory while repeating each
-  operation thousands of times. It also forces collections, to check that the
-  finalizer frees an abandoned `Regex` exactly once.
-- `test/uninitialised.test.ts`: the API before `init` has run.
+- **Prettier controls the layout** (`npm run format`). The configuration is
+  `.prettierrc.json`. Put generated files in `.prettierignore`, with the name
+  of the script that makes them.
+- **ESLint finds mistakes.** The preset is typescript-eslint
+  `strictTypeChecked`, with type information. Each rule that differs from
+  the preset has its reason next to it in `eslint.config.js`. If a rule is
+  wrong for this code, turn it off there, with a sentence that says why. Do
+  not use `eslint-disable` at the call site. One deliberate exception (for
+  example, a deprecated API that you use on purpose) gets an inline disable
+  that says so.
+- **Do not use `!` in code that ships.** Narrow the type instead: destructure
+  the value, iterate instead of index, or compare with `undefined`. Tests can
+  use `!`. The `!` that existed before this rule are on
+  `scripts/lint-allowlist.json`.
+- **The library uses the globals of no environment.** It runs in a browser,
+  a worker and Node. `npm run build` and lint fail on a Node or DOM global in
+  `src/index.ts`.
+- **A `switch` over a union has no `default`.** Then the exhaustiveness rule
+  makes a new member a compile error at each `switch`.
+- **Size limits:** 100 lines for each function and a cyclomatic complexity of
+  25. Blank lines and comments do not count, so continue to write the
+  reasons. Tests do not have these limits.
+- **Imports** are in three groups: Node built-ins, packages, then the files
+  of the project. `eslint --fix` sorts them.
+- **A layer that must stay pure** (for example a simulation engine or a
+  parser) gets a `no-restricted-imports` block. The block names what the
+  layer must not import, and why. A test lints a real import line against
+  the rule, so that a change to the configuration cannot stop the rule
+  without a failure. `eslint.config.js` has a commented example of the block.
+- **When you adopt a rule over existing code**, list the findings of that
+  day in an allowlist, by file and by rule. A test holds the list. New
+  code gets no exceptions. The list only gets shorter. When you fix a listed
+  finding, lower its count in the same change.
+- **TypeScript** is strict, with the extra flags in `tsconfig.base.json`.
+  Each flag has its reason. Pin `typescript` with `~`, not `^`: TypeScript
+  does not follow semantic versioning, and it moves with typescript-eslint.
 
-## Mutation testing
+## Dependencies
 
-`npm run test:mutation` runs [Stryker](https://stryker-mutator.io): it changes
-`src/` one small edit at a time and checks that some test fails. A full run takes
-about five minutes on 16 cores and about 25 on a hosted runner. `mutation.yml`
-runs it weekly and on pull requests that change `src/`, `test/` or the Stryker
-config. It fails below the floor in `stryker.config.mjs` (90%), and the HTML
-report is uploaded as an artifact.
+- **Use a caret range. The lockfile is the pin.** Write the reason next to
+  each exception (for example, the `~` on `typescript`).
+- **Declare a package where you import it.** In a repository with
+  workspaces, declare each package in the workspace that uses it, not also at
+  the root. Use one range for each name across all manifests.
+- **Dependabot** proposes updates each week, with a seven-day cooldown. It
+  groups minor and patch updates, and proposes each major on its own. Each
+  `ignore` entry in `.github/dependabot.yml` has its reason.
+- **Read each advisory. Do not apply fixes automatically.** One time,
+  `npm audit fix --force` proposed to move a dependency thirteen minor
+  versions back. If a high advisory has no path that the code can reach,
+  list it in `.audit-exceptions.json` with the reason and an expiry date. An
+  entry that has expired, or that no advisory needs, fails CI.
+- **Licences.** The licence of each production dependency is on
+  `.licence-allowlist.json`. Otherwise the file names the package, the
+  version that a person read, and why it is acceptable.
+- **Pin a git dependency to a commit**, not a tag, because a tag can move.
+  The dependency ships a checksum that CI verifies.
+- **CI does not run install scripts** (`npm ci --ignore-scripts`). If a
+  dependency needs its install script, name it in the workflow with the
+  reason.
+- **Node** has an exact version in `.nvmrc`. `engine-strict=true` in
+  `.npmrc` holds local installs to `engines`. Here, `engines` stays at
+  `>=22.6.0`, because consumers read it too, and the library uses no Node
+  API ([ADR 0003](docs/adr/0003-the-package-adopts-the-template-and-keeps-its-own-build.md)). CI warns on a
+  pull request, and fails each month, when `.nvmrc` is behind the newest
+  patch of its line. Move the major of `@types/node` with `.nvmrc`, not
+  before it.
+- **Pin each action to a commit SHA**, with the version in a comment after
+  it. Dependabot reads the comment and updates the SHA and the comment
+  together. The owner of a tag can move it while a job holds a checkout.
 
-The score was 90.9% on CI when the floor was set, and every survivor then was
-a mutant that no test can tell apart from the original. They come in these
-kinds:
+## Decisions
 
-- **Bounds that make no difference.** An index one past the end of a typed
-  array, or `charCodeAt` out of range, gives `NaN` or is ignored, so `<` and
-  `<=` behave the same.
-- **Unreachable branches.** A failed allocation of a 256-byte error buffer, an
-  error message PCRE2 has no text for, `rc === 0` from a match, and two
-  replacement error codes the wrapper cannot trigger.
-- **Performance, not behaviour.** A buffer sized a little smaller, reallocated
-  when it did not need to be, or a state read that is then discarded.
+A choice that stays true after the pull request is merged goes in
+`docs/adr/` as a record of its own. The record gives the context that forced
+the choice, the choice, and what it costs.
+[`docs/adr/README.md`](docs/adr/README.md) has the template, the conventions
+and the index.
 
-A new survivor outside those kinds is a missing test.
+- **An ADR does not change.** When a decision changes, write a new ADR and
+  change the status of the old one. Do not edit an ADR to record the status
+  of the work.
+- **Number the ADRs in order, and do not use a number again.** Explain each
+  gap under "Numbers with no record". CI's docs check holds the index and the
+  directory to each other.
+- **Do not keep a plan document** after the plan ships. Decisions go to
+  ADRs, open work goes to issues, and `git log` keeps the plan.
 
-## Changing the module
+## Documentation
 
-Edit `build/build.sh` or the C in `build/`, then:
+**Write all documentation in ASD-STE100 Simplified Technical English**
+([ADR 0002](docs/adr/0002-documentation-is-simplified-technical-english-and-a-readme-keeps-to-the-fundamentals.md)).
+This rule applies to each new or changed text: the README, the files in
+`docs/`, this file, `SECURITY.md`, `CLAUDE.md`, ADRs and the CHANGELOG. It
+does not apply to an accepted ADR, which does not change, or to third-party
+text such as the Contributor Covenant. The main rules:
 
-```sh
-npm run build:wasm
-```
+- One topic in each sentence, and one instruction in each procedure step.
+- A maximum of 20 words in a procedure step, and 25 words in descriptive
+  text. A maximum of six sentences in a paragraph.
+- Use the active voice, and the imperative for an instruction. Put a
+  condition first ("If the test fails, …").
+- Use simple present, past or future tenses. Do not use "-ing" forms, except
+  in technical names.
+- Use "must" for an obligation, "can" for an ability, and "do not" for a
+  prohibition. Do not use `should`, `may`, `might` or `would`.
+- Use the same word for the same thing each time. Do not leave out "the",
+  "a" or "an". Use a maximum of three nouns in a row.
+- Do not use phrasal verbs, contractions, semicolons in prose, or `e.g.`,
+  `i.e.` and `etc.`. The docs check warns on these words in the files
+  that `ste` names in `.docs-check.json`.
+- Do not change code, commands, file names or product names: they are
+  technical names.
 
-Commit `pcre2.wasm` and `pcre2.wasm.sha256` together. CI rebuilds with clang 18
-and fails if the result differs, so the committed binary is always known to
-come from the source.
+**The README keeps to the fundamentals, in a maximum of 200 lines.** CI's
+docs check enforces the limit (`readmeMaxLines` in `.docs-check.json`). The
+README has these sections, in this order:
 
-For a PCRE2 upgrade, change `PCRE2_VERSION` and `PCRE2_SHA256` in
-`build/build.sh` and check the release's `LICENCE.md` against
-`LICENCE-PCRE2.md`, updating it and `NOTICE` if they differ. The version test in
-`test/regex.test.ts` names the release it expects.
+1. A banner, the CI, security and licence badges, the name, and one sentence
+   that says what the product is.
+2. **Highlights:** three to five bullets.
+3. **Overview:** what the product does, how mature it is, and what it is not.
+4. **Demo:** a screenshot or a short GIF, from `docs/assets/`.
+5. **Usage** and **Installation:** one or two commands each.
+6. **Documentation:** a table of the documents, with a row for each file in
+   `docs/`.
+7. **Contributing and feedback**, and **Licence**.
 
-## Releasing
+**Put technical detail in `docs/`.** If a topic needs more than a few lines,
+give it its own file in `docs/`. Link the file from the Documentation table
+of the README. Do not use a wiki. A wiki change gets no
+review and no link check. Also, GitHub does not give a wiki to a private
+repository on the Free plan.
 
-Consumers install a tag (`github:Bimmiest/pcre2-wasm-utf16#v0.1.0`), so pushing a
-tag is releasing. To release:
+**A change updates the documents that it makes wrong, in the same change.**
+Do not do it later or in a follow-up issue: a document that you update a week
+later is wrong for a week.
 
-1. In a pull request, move the `Unreleased` entries in `CHANGELOG.md` under the
-   new version, and set that version in `package.json` with
-   `npm version <x.y.z> --no-git-tag-version`.
-2. Merge it once CI passes.
-3. Tag the merge commit on `main`, push the tag, and create the release:
+| Document | Update it when |
+|---|---|
+| `CHANGELOG.md`, under `Unreleased` | A user can see the change. Write one or two sentences, with the issue link. |
+| `README.md` | A capability is added or changes shape, or a caveat stops being true |
+| `docs/*.md` | The topic of the file changes |
+| `docs/adr/` | A decision stays true after the pull request: add a new record **and** its row in the index |
+| The commit message | An operator must act: add one `Upgrade-Note:` line |
+| `SECURITY.md` | The attack surface changes: a new input path, or a new place where data is stored or sent |
+| `CLAUDE.md` | People start to break a rule, or a mistake is expensive and not obvious |
 
-   ```sh
-   git tag -a v<x.y.z> -m "v<x.y.z>"
-   git push origin v<x.y.z>
-   gh release create v<x.y.z> --verify-tag --notes "<the CHANGELOG entry>"
+CI checks only the mechanical parts: links, the ADR index, the root licences
+in the README, and the length of the README. Whether a paragraph is still
+true is your decision.
+
+- **Do not write by hand a fact that a tool can give.** Do not put test
+  counts in the README: `npm test` prints them.
+- **Code comments** say what the code does now, and which constraint makes it
+  not obvious. For history, a comment points to the ADR:
+  `See docs/adr/NNNN-title.md.`
+- **Each deviation in a configuration file has its reason in the same
+  file:** a changed lint rule, a tsconfig flag that is off, a Dependabot
+  ignore, an `overrides` entry, or a `# zizmor: ignore[...]`.
+- **`CLAUDE.md` is one screen.** It does not summarise this file. It names
+  the rules that people break, and the rules where a mistake is expensive. It
+  has no status and no plan.
+
+## Security
+
+- Report a vulnerability privately, as [`SECURITY.md`](SECURITY.md) says.
+- **Rotate a real key. Do not allowlist it.** `.gitleaks.toml` allowlists a
+  path only when the value is not a credential, and you can prove it. The
+  file explains its two important lines (`useDefault = true` and the
+  singular `[allowlist]`).
+- **`.trivyignore.yaml`** records a decision, with its reason and both
+  spellings of the check ID. It is not a place for findings that nobody
+  wants to read.
+- **Untrusted text gets to a shell only through the environment.** This
+  includes the body or branch name of a pull request, the title of an issue
+  and a commit message. Do not put `${{ }}` in a `run:` block.
+- **Some repository settings are not files.** The checklist in
+  [`docs/repository-settings.md`](docs/repository-settings.md) sets them, and `settings.yml` checks them each week: the merge methods,
+  the wiki, the Actions permissions, private vulnerability reporting,
+  Dependabot alerts, secret scanning, and the ruleset on `main`. When a
+  setting must differ, add an exception with the reason to
+  `.repo-settings.json`. When the ruleset requires a new check, add its name
+  there too.
+
+## Releases
+
+Use semantic versioning. A breaking change increments MAJOR, a feature
+increments MINOR and a fix increments PATCH. Before 1.0, a breaking change
+increments MINOR.
+
+Consumers install a tag (`github:Bimmiest/pcre2-wasm-utf16#v0.1.0`). Thus
+**a pushed tag is the release**
+([ADR 0003](docs/adr/0003-the-package-adopts-the-template-and-keeps-its-own-build.md)).
+
+1. On a branch, change `## Unreleased` in `CHANGELOG.md` to
+   `## x.y.z — YYYY-MM-DD`. Add a new, empty `## Unreleased` above it.
+2. Run `npm version x.y.z --no-git-tag-version`. It updates `package.json`
+   and the lockfile.
+3. Open a pull request, and merge it when CI is green.
+4. Tag the merge commit on `main`, and push the tag.
+
+   ```bash
+   git tag -a vx.y.z <sha> -m "Release x.y.z"
+   git push origin vx.y.z
    ```
 
-Until 1.0, a breaking change raises the minor version.
+5. Create the GitHub release from the tag, with the CHANGELOG entry as the
+   notes.
 
-**A published tag never moves.** A ruleset refuses deleting or updating `v*`
-tags. A lockfile records the commit a tag pointed at, so a moved tag would give
-new installs different code from existing ones under the same version.
+   ```bash
+   gh release create vx.y.z --verify-tag --notes "<the CHANGELOG entry>"
+   ```
 
-## Commits and pull requests
-
-- Explain **why** in the commit body, not just what.
-- Add a `CHANGELOG.md` entry for anything a user of the package would notice.
-- Reference issues with a closing keyword **per issue**: `Closes #1, #2` only
-  closes #1.
+**A published tag does not move.** A ruleset stops a delete or an update of
+each `v*` tag. A lockfile records the commit of a tag. Thus a tag that moved
+gives new installs different code from existing installs, with the same
+version. To correct a release, release a new patch.

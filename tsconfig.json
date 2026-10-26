@@ -1,21 +1,12 @@
 {
-  // Type-check only. The source is ES2022 with no DOM or Node types, so it
-  // runs anywhere; the tests run under Node and see its types.
+  // The type-check: every source file, its tests and the config files that are
+  // TypeScript, emitting nothing. `npm run typecheck`. ESLint's type-aware rules
+  // resolve files through this project too (projectService), so a file not
+  // included here is a file the typed lint rules cannot see.
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "types": ["node"],
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "erasableSyntaxOnly": true,
     "noEmit": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "skipLibCheck": true
+    "types": ["node"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "vitest.config.ts"]
 }

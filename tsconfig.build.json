@@ -1,0 +1,18 @@
+{
+  // The build of the package. The package ships its TypeScript source, and
+  // each consumer compiles it with the consumer's own toolchain, so this
+  // config emits nothing. It type-checks `src/` the way a consumer receives
+  // it: tests left out, no Node types, and only ES2022, so that the library
+  // stays usable in a browser, a worker and Node alike. A Node or DOM global
+  // in the library is a build failure here. `npm run build`; CI and
+  // CONTRIBUTING use the name. See docs/adr/0003-the-package-adopts-the-template-and-keeps-its-own-build.md.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "noEmit": true,
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/test"]
+}

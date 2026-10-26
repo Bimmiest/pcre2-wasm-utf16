@@ -1,96 +1,216 @@
 name: CI
 
+# The gates a pull request has to clear, and that `main` is measured by. Each
+# job asks an unrelated question and can fail on its own: a new advisory must
+# not hide the test suite's verdict, and the lint of the workflows must not
+# wait behind the build.
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-  # The rebuild below downloads the pinned PCRE2 release and installs clang 18
-  # from the runner's apt, and the audit gates on advisories that appear
-  # without anyone committing. A weekly run notices any of those changing
-  # before the next pull request has to.
+  # The audit job gates on advisories, and advisories appear against
+  # dependencies nobody has touched. The wasm job downloads the pinned PCRE2
+  # release and installs clang 18 from the runner's apt, and either can change
+  # with no commit here. With only push and pull_request triggers
+  # it runs when someone happens to commit, so a critical advisory can sit
+  # unreported for as long as main is quiet. The weekly run is also the only
+  # thing that re-exercises the suite against a current runner image, and the
+  # only time the randomised job runs.
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
-# Read-only: nothing here writes to the repository or the API.
+# Read-only unless a job asks for more. Nothing here needs the token.
 permissions:
   contents: read
 
-# Superseded runs on a pull request are cancelled; on main each push is a
-# distinct commit whose result stands on its own.
+# A new push supersedes an in-flight run for the same pull request, grouped by
+# its number rather than its ref. Never cancel main: each push there is a
+# distinct commit whose status stands on its own, and its result is the record
+# of whether the default branch is green.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  ci:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Nothing here should take long; without a ceiling a hung install runs for
+    # six hours.
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      # Nothing in this job talks to the remote after checkout, and it runs
+      # dependency code that has no business finding a token in .git/config.
+      #
+      # Every `uses:` is a commit sha with the version it was in a trailing
+      # comment. A tag is a pointer the action's owner can move, and these jobs
+      # hold a checkout; Dependabot reads the comment and rewrites both halves.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version-file: .nvmrc
-          cache: npm
+          persist-credentials: false
 
-      - name: Install dependencies
-        run: npm ci
+      # Node from .nvmrc, the npm cache, `npm ci --ignore-scripts`.
+      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
 
+      # Lint before typecheck: it is the faster of the two and fails on the
+      # cheaper class of mistake, so a contributor who broke both hears about
+      # the small one first.
       - name: Lint
         run: npm run lint
 
-      - name: Type-check
+      # Fails on a file that `npm run format` would change, so a review never
+      # spends its attention on layout.
+      - name: Format check
+        run: npm run format:check
+
+      - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
-        # With coverage: the floors are in package.json's test:coverage, so a
-        # local run gives the same verdict.
+      # `test:coverage` rather than a bare `npm test`: the thresholds live in
+      # vitest.config.ts, so this is the same verdict a local run gives and the
+      # floor is a ratchet rather than a suggestion. A red step here is one of
+      # two things, and the last lines of the log say which: a failing test, or
+      # coverage under its floor.
+      - name: Test and coverage floor
         run: npm run test:coverage
 
+      # The other pawl of the ratchet: fails when a measurement has risen more
+      # than a point above its floor, and prints the thresholds block to write.
+      # A step of its own so a red here reads as "raise the floor" and never as
+      # a failing test.
+      - name: Coverage floor is current
+        uses: Bimmiest/shared-workflows/.github/actions/coverage-ratchet@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+
+      # The package ships its source, so the build type-checks `src/` alone,
+      # as a consumer receives it: no tests, no Node types, ES2022 only.
+      - name: Build
+        run: npm run build
+
+      # What `npm pack` ships, which is also what a git-dependency install
+      # receives. pcre2.wasm redistributes PCRE2, and its licence requires the
+      # notices to go with the binary, so a `files` list that dropped them
+      # would fail nothing else.
       - name: Package contents
-        # What a git-dependency install receives, licence files included.
         run: npm run check:package
 
-  # pcre2.wasm is committed, so this is what makes it trustworthy: rebuild it
-  # from the pinned PCRE2 release with the pinned toolchain and fail unless the
-  # result is byte-identical to what is checked in (and to its recorded
-  # SHA-256). The build also holds this repository's own C to
-  # warnings-as-errors.
-  wasm:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # The documentation properties that are facts rather than judgements:
+      # every relative link resolves, the ADR index agrees with its directory.
+      - name: Documentation links and the ADR index
+        uses: Bimmiest/shared-workflows/.github/actions/docs-check@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
 
-      - name: Install clang and wasm-ld
-        # The major version is part of the reproducibility contract; build.sh
-        # names the one the committed module was built with.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang-18 lld-18
+      # Every production dependency's licence is on .licence-allowlist.json,
+      # read from the lockfile, so it needs no network and sees exactly what
+      # `npm ci --omit=dev` installs.
+      - name: Production dependency licences
+        uses: Bimmiest/shared-workflows/.github/actions/licence-check@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
 
-      - name: Rebuild pcre2.wasm and compare with the committed module
-        run: CLANG=clang-18 WASM_LD=wasm-ld-18 build/build.sh --check
-
-  # Separate from the tests so that a new advisory and a failing test are
-  # reported independently, and an advisory is reported in seconds.
+  # Split out of `verify` on purpose. Sequentially, a new advisory turned the
+  # whole run red after minutes of tests, and the tests' own verdict was lost
+  # behind it; the two ask unrelated questions. It also means a fresh advisory
+  # is reported in seconds rather than behind the suite.
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      # No `cache: npm` and no `npm ci`: npm audit resolves the tree from
+      # package-lock.json, so installing would only buy a slower job.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          # No install: npm audit reads package-lock.json.
 
-      - name: Audit production dependencies
-        # There are none today; this keeps the gate in place for the day one
-        # is added, since those would ship to every consumer.
-        run: npm audit --omit=dev --audit-level=high
+      # Production dependencies are what ship, so they gate, at `high`, with
+      # .audit-exceptions.json for an advisory nothing reachable is exposed to.
+      - name: Advisories in production dependencies
+        uses: Bimmiest/shared-workflows/.github/actions/audit-check@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
 
+      # Reported, never fatal: a CVE in a build tool must not be able to block
+      # a fix for something users are actually hitting.
       - name: Report dev-only advisories
-        # Reported, never fatal: an advisory in a test tool must not block a
-        # fix to the library.
         run: npm audit --audit-level=high || true
+
+  # pcre2.wasm is committed, so this is what makes it trustworthy: rebuild it
+  # from the pinned PCRE2 release with the pinned toolchain, and fail unless
+  # the result is byte-identical to the committed file and to its recorded
+  # SHA-256. The same build holds this repository's own C to
+  # `-Wall -Wextra -Werror`.
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The major version is part of the reproducibility contract. build.sh
+      # names the one that built the committed module.
+      - name: Install clang and wasm-ld
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang-18 lld-18
+
+      - name: Rebuild pcre2.wasm and compare it with the committed module
+        env:
+          CLANG: clang-18
+          WASM_LD: wasm-ld-18
+        run: build/build.sh --check
+
+  # npm audit reads the lockfile's registry packages after they merge. This
+  # reads the pull request's dependency diff from the dependency graph and
+  # refuses a newly added advisory before it lands. Needs the dependency graph
+  # enabled on the repository.
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # The same bar as the audit job's production gate.
+          fail-on-severity: high
+
+  # The workflows are code too. actionlint catches what GitHub would only
+  # reject at run time; zizmor catches what GitHub happily runs. The check is
+  # named `workflow-lint / workflow-lint`.
+  workflow-lint:
+    uses: Bimmiest/shared-workflows/.github/workflows/workflow-lint.yml@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+
+  # The default run is deterministic on purpose: one time zone, one locale, a
+  # fixed order. That is what makes a red run reproducible, and it is also what
+  # lets a test that only passes under those conditions stay green forever.
+  # Once a week the suite runs the other way: a zone that is neither UTC nor
+  # the runner's, a non-English locale, and files and tests in a random order.
+  # The step prints the seed and the command that replays the run. The config
+  # is used as is, without the coverage floor, which is not a property of the
+  # ordering.
+  #
+  # The name carries no matrix expression: GitHub appends the matrix values
+  # itself, and on a pull request, where the job is skipped before the matrix
+  # expands, an expression in the name is shown unevaluated.
+  randomised:
+    if: github.event_name == 'schedule'
+    name: unit tests, randomised
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tz: America/Los_Angeles
+            lang: de_DE.UTF-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+
+      - name: Test
+        env:
+          TZ: ${{ matrix.tz }}
+          LANG: ${{ matrix.lang }}
+        run: |
+          seed=$(( (RANDOM << 15) | RANDOM ))
+          echo "Seed: $seed. Replay: TZ=$TZ LANG=$LANG npx vitest run --sequence.shuffle --sequence.seed=$seed" | tee -a "$GITHUB_STEP_SUMMARY"
+          npx vitest run --sequence.shuffle --sequence.seed="$seed"

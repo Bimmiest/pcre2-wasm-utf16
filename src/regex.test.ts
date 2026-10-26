@@ -1,7 +1,7 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { test } from 'vitest';
 import {
   ERROR_DEPTHLIMIT,
   ERROR_HEAPLIMIT,
@@ -14,7 +14,7 @@ import {
   RegexMatchError,
   RegexSyntaxError,
   version,
-} from '../src/index.ts';
+} from './index.ts';
 
 const wasmPath = new URL('../pcre2.wasm', import.meta.url);
 const bytes = readFileSync(wasmPath);
@@ -53,14 +53,14 @@ test('named groups, unset groups and duplicate names', () => {
   assert.equal(new Regex('(?<__proto__>x)').exec('x')!.groups?.['__proto__'], 'x');
   assert.equal(m[3], undefined);
   assert.equal(m.indices[3], undefined);
-  assert.deepEqual(m.indices.groups?.v, [3, 4]);
+  assert.deepEqual(m.indices.groups?.['v'], [3, 4]);
 
   const dup = new Regex('(?:(?<n>a)|(?<n>b))', 'J');
   assert.deepEqual(dup.names, ['n']);
   assert.deepEqual(dup.groupNames, [undefined, 'n', 'n']);
-  assert.equal(dup.exec('b')!.groups?.n, 'b');
+  assert.equal(dup.exec('b')!.groups?.['n'], 'b');
   // The first group of a name that took part wins, not the last.
-  assert.equal(dup.exec('a')!.groups?.n, 'a');
+  assert.equal(dup.exec('a')!.groups?.['n'], 'a');
   assert.equal(new Regex('x').exec('x')!.groups, undefined);
 });
 
@@ -92,7 +92,10 @@ test('a start offset outside the subject finds nothing and changes nothing', () 
 test('a start offset inside a surrogate pair moves past the pair', () => {
   const dot = new Regex('.');
   assert.deepEqual(dot.exec('😀a', 1)?.index, 2);
-  assert.deepEqual([...dot.matchAll('😀a', 1)].map((m) => m[0]), ['a']);
+  assert.deepEqual(
+    [...dot.matchAll('😀a', 1)].map((m) => m[0]),
+    ['a'],
+  );
   assert.equal(dot.substitute('😀a', 'x', { start: 1 }), '😀x');
   // Not when the two halves are not a pair, either way round.
   assert.equal(new Regex('\\x{FFFD}').exec('a\udc00', 1)?.index, 1);
@@ -159,12 +162,15 @@ test('global iteration follows pcre2_next_match', () => {
     [1, 'a'],
     [2, ''],
   ]);
-  assert.deepEqual(spans(new Regex('\\d+'), 'a1b22', ), [
+  assert.deepEqual(spans(new Regex('\\d+'), 'a1b22'), [
     [1, '1'],
     [3, '22'],
   ]);
   assert.deepEqual(spans(new Regex('\\d'), 'a1b2c3').length, 3);
-  assert.deepEqual([...new Regex('\\d').matchAll('123', 1)].map((m) => m[0]), ['2', '3']);
+  assert.deepEqual(
+    [...new Regex('\\d').matchAll('123', 1)].map((m) => m[0]),
+    ['2', '3'],
+  );
   // An empty match never splits a surrogate pair.
   assert.deepEqual(spans(new Regex(''), '😀'), [
     [0, ''],
@@ -200,7 +206,7 @@ test('substitute', () => {
   assert.throws(() => re.substitute('a=1', '${nope}'), RegexSyntaxError);
 });
 
-test('a malformed replacement is a syntax error, with PCRE2\'s code', () => {
+test("a malformed replacement is a syntax error, with PCRE2's code", () => {
   const re = new Regex('(a)');
   for (const [replacement, extended, code] of [
     ['$', false, -35],
@@ -232,9 +238,18 @@ test('an output too large for wasm memory throws rather than crashing', () => {
 
 test('replace with a callback', () => {
   const re = new Regex('\\d+');
-  assert.equal(re.replace('a1b22', (m) => `<${m[0]}>`, true), 'a<1>b<22>');
-  assert.equal(re.replace('a1b22', (m) => `<${m[0]}>`), 'a<1>b22');
-  assert.equal(new Regex('x*').replace('ab', () => '-', true), '-a-b-');
+  assert.equal(
+    re.replace('a1b22', (m) => `<${m[0]}>`, true),
+    'a<1>b<22>',
+  );
+  assert.equal(
+    re.replace('a1b22', (m) => `<${m[0]}>`),
+    'a<1>b22',
+  );
+  assert.equal(
+    new Regex('x*').replace('ab', () => '-', true),
+    '-a-b-',
+  );
 });
 
 test('a pattern PCRE2 rejects throws with the offset', () => {

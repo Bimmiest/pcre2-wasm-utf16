@@ -1,129 +1,125 @@
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="pcre2-wasm-utf16" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Bimmiest/pcre2-wasm-utf16/actions/workflows/ci.yml"><img src="https://github.com/Bimmiest/pcre2-wasm-utf16/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/Bimmiest/pcre2-wasm-utf16/actions/workflows/security.yml"><img src="https://github.com/Bimmiest/pcre2-wasm-utf16/actions/workflows/security.yml/badge.svg" alt="Security status"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/Bimmiest/pcre2-wasm-utf16"><img src="https://api.scorecard.dev/projects/github.com/Bimmiest/pcre2-wasm-utf16/badge" alt="OpenSSF Scorecard"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT%20AND%20BSD--3--Clause-blue" alt="Licence: MIT and BSD-3-Clause"></a>
+</p>
+
 # pcre2-wasm-utf16
 
 [PCRE2](https://github.com/PCRE2Project/pcre2) compiled to WebAssembly, for
-browsers, workers and Node.
+code in a browser, a worker or Node that must run PCRE patterns.
 
-- **The 16-bit library, in UTF mode.** A JS string's UTF-16 code units are
-  handed to PCRE2 as they are, so every offset it reports — match start and
-  end, every group span — is a JS string index. Nothing is transcoded to UTF-8
-  and back.
-- **Built here, from a pinned release.** `build/build.sh` downloads PCRE2
-  10.48, checks its SHA-256, and compiles it with plain clang and `wasm-ld`. No
-  emscripten, no generated JS glue: the module imports nothing and brings its
-  own few libc functions (`build/libc/`). The build is byte-for-byte
-  reproducible for a given clang major version, and `pcre2.wasm.sha256` records
-  the result.
-- **No JIT.** There is no JIT for WebAssembly; every match runs PCRE2's
-  interpreter (`pcre2_match`). Match and depth limits therefore count what the
-  interpreter counts, which is not what they count under JIT.
-- **~300 KB** raw, **~80 KB** gzipped.
+## Highlights
 
-## Installing
+- **Offsets are JS string indices.** The 16-bit library in UTF mode gets the
+  UTF-16 code units of a JS string with no change. Nothing is transcoded to
+  UTF-8.
+- **Built here, from a pinned release.** CI rebuilds the module from PCRE2
+  10.48 and fails if the result is not byte-identical to the committed file.
+- **No emscripten and no JS glue.** The module imports nothing, and it runs
+  in each environment that has WebAssembly.
+- **Limits that hold.** Match, depth and heap limits stop a runaway pattern
+  with an error, not a hung tab.
+- **Small.** The module is approximately 300 KB, and 80 KB with gzip.
 
-It is not published to npm. Install it from a release tag:
+## Overview
 
-```sh
+The package gives a `Regex` class with `exec`, `test`, `matchAll`,
+`substitute` and `replace`. A match has the shape of a `RegExpExecArray` with
+the `d` flag. You load the module one time with `init` or `initSync`. You
+give it the bytes or a compiled `WebAssembly.Module`, because the package
+does not fetch or read files. It was written for
+[propslab](https://github.com/Bimmiest/propslab), which runs the regexes of
+Splunk on it.
+
+**Maturity.** The version is 0.1.0, before 1.0. A breaking change increments
+the minor version.
+
+**What it is not:**
+
+- It is not on npm. Install it from a release tag.
+- It ships TypeScript source, not compiled JavaScript. Import it through a
+  tool that compiles TypeScript, for example Vite, Vitest or esbuild. Plain
+  `node` cannot import it, because Node does not strip types from files in
+  `node_modules`.
+- It has no JIT, because WebAssembly has no JIT for PCRE2. Each match runs
+  the interpreter of PCRE2.
+- The garbage collector does not free wasm memory. Call `free()` on each
+  `Regex` that you do not need again.
+
+## Demo
+
+```ts
+import { readFileSync } from 'node:fs';
+import { initSync, Regex } from 'pcre2-wasm-utf16';
+
+initSync(readFileSync(new URL('../pcre2.wasm', import.meta.url)));
+
+const re = new Regex('(?<key>\\w+)=(?<value>\\S+)');
+const m = re.exec('é😀 a=1');
+m?.index; // 4: the JS index, after the two units of 😀
+m?.groups?.value; // '1'
+re.substitute('a=1 b=2', '${value}=${key}', { global: true }); // '1=a 2=b'
+re.free();
+```
+
+## Usage
+
+```ts
+await init(WebAssembly.compileStreaming(fetch(new URL('pcre2-wasm-utf16/pcre2.wasm', import.meta.url))));
+new Regex('a+', 'i').test('xAAy'); // true
+```
+
+[docs/api.md](docs/api.md) tells you how to load the module in a browser, a
+worker and Node, and gives the flags, the semantics and the limits.
+
+## Installation
+
+```bash
 npm install github:Bimmiest/pcre2-wasm-utf16#v0.1.0
 ```
 
-The package ships its TypeScript source (`src/index.ts`), so import it through
-something that compiles TypeScript, such as Vite, Vitest or esbuild. Plain
-`node` cannot import it: Node does not strip types from files under
-`node_modules`.
+To work on the package:
 
-It was written for [propslab](https://github.com/Bimmiest/propslab), which runs
-Splunk's regexes on it.
-
-## Loading
-
-The package never fetches or reads a file itself. Give `init` the bytes or an
-already compiled `WebAssembly.Module`:
-
-```ts
-import { init, initSync, getModule, Regex } from 'pcre2-wasm-utf16';
-
-// Browser: compile once, streaming. Needs 'wasm-unsafe-eval' in a CSP script-src.
-const wasmUrl = new URL('pcre2-wasm-utf16/pcre2.wasm', import.meta.url);
-await init(WebAssembly.compileStreaming(fetch(wasmUrl)));
-
-// Hand the compiled module to a worker instead of compiling it again there.
-worker.postMessage({ pcre2: getModule() });
-// …and in the worker (synchronous instantiation is fine off the main thread):
-initSync(event.data.pcre2);
-
-// Node:
-import { readFileSync } from 'node:fs';
-initSync(readFileSync(new URL('../pcre2.wasm', import.meta.url)));
+```bash
+nvm use    # the Node version in .nvmrc
+npm ci
+npm run lint && npm run format:check && npm run typecheck && npm run test:coverage && npm run build
 ```
 
-## Use
+Requirements: Node, at the version in [`.nvmrc`](.nvmrc). To rebuild
+`pcre2.wasm`, you also need clang 18 and `wasm-ld`
+([docs/building.md](docs/building.md)).
 
-```ts
-const re = new Regex('(?<key>\\w+)=(?<value>\\S+)', 'i', { matchLimit: 100000 });
+## Documentation
 
-re.exec('a=1 b=2');                // first match, or null
-re.exec('a=1 b=2', 4);             // first match at or after offset 4
-re.test('a=1');                    // boolean
-for (const m of re.matchAll('a=1 b=2')) {
-  m[0];            // 'a=1'
-  m.index, m.end;  // 0, 3
-  m.groups?.key;   // 'a'
-  m.indices[2];    // [2, 3]
-}
-re.substitute('a=1 b=2', '${value}=${key}', { global: true });  // '1=a 2=b'
-re.replace('a=1 b=2', (m) => m[1]!.toUpperCase(), true);        // 'A B'
+| Document | What it holds |
+|---|---|
+| [docs/api.md](docs/api.md) | How to load the module, the `Regex` API, the flags, the semantics, the limits and the memory |
+| [docs/building.md](docs/building.md) | How `build/build.sh` makes `pcre2.wasm`, how CI proves it, and how to upgrade PCRE2 |
+| [docs/testing.md](docs/testing.md) | What each test file tests, and how to read a mutation run |
+| [docs/repository-settings.md](docs/repository-settings.md) | The repository settings that are not files, and that `settings.yml` checks |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How work happens here: branches, commits, tests, style, dependencies and releases |
+| [docs/adr/](docs/adr/README.md) | The decisions, and why we made them |
+| [CHANGELOG.md](CHANGELOG.md) | What changed for a user, newest first |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability, and what is in scope |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | The Contributor Covenant, enforced through the security contact |
 
-re.free();  // release the compiled pattern's wasm memory
-```
+## Contributing and feedback
 
-A match is shaped like a `RegExpExecArray` with the `d` flag: element N is
-group N's text, or `undefined` when it did not take part.
-
-**Flags** are letters: `i` caseless, `m` multiline, `s` dotall, `x` extended,
-`n` no auto-capture, `U` ungreedy, `J` duplicate names, `u` UCP (Unicode
-`\w`, `\d`, `\b` and POSIX classes), `A` anchored, `D` dollar-end-only. Inline
-settings — `(?i)`, `(*UCP)`, `(*CRLF)` and the rest — work as in PCRE2.
-
-**Iteration** follows PCRE2's own rule (`pcre2_next_match`): after an empty
-match, the next attempt is at the same place with an empty match there
-forbidden, as in Perl. That differs from JS's `matchAll`, which steps forward one
-code unit.
-
-**Newlines** are LF, PCRE2's default: `.` matches `\r`, and `$` matches at the
-end or before a final `\n`.
-
-**Errors.** A pattern PCRE2 rejects throws `RegexSyntaxError`, with the
-`offset` into the pattern. A match that hits a limit throws `RegexMatchError`
-with PCRE2's error `code` (`ERROR_MATCHLIMIT`, `ERROR_DEPTHLIMIT`,
-`ERROR_HEAPLIMIT`); backtracking memory is capped at 64 MiB per match.
-
-**Lone surrogates** in a subject are matched as U+FFFD (one code unit, so
-offsets are unaffected); the text returned is sliced from the original string.
-
-## Memory
-
-Compiled patterns live in wasm memory, which the garbage collector does not
-see. Call `free()` when done with a `Regex`; one collected without it is freed
-by a `FinalizationRegistry`, eventually. Using a freed `Regex` throws. The
-subject buffer and match data are shared by every call and grow to the largest
-used; wasm memory can grow to 1 GiB and never shrinks.
-
-## Building
-
-The module is committed, so using the package needs no build. To rebuild it:
-
-```sh
-npm run build:wasm   # rebuild pcre2.wasm and pcre2.wasm.sha256
-npm run check:wasm   # rebuild in a temp dir; fail unless identical to the committed file
-```
-
-Needs clang 18 with the wasm32 target and `wasm-ld` (Debian/Ubuntu: `clang-18
-lld-18`). Another clang major version builds a working module whose bytes differ.
-
-[CONTRIBUTING.md](CONTRIBUTING.md) covers the tests and the checks CI runs.
+To report a bug or to suggest a change, open an issue. Before you open a pull
+request, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-The wrapper, bridge and build script are MIT (`LICENSE`). `pcre2.wasm` contains
-PCRE2, under its BSD licence with the PCRE2 exemption, reproduced in
-`LICENCE-PCRE2.md`; see `NOTICE`.
+| File | What it covers | What it obliges |
+|---|---|---|
+| [LICENSE](LICENSE) | The wrapper (`src/`), the bridge and libc (`build/`), and the build script: MIT | Keep the copyright notice |
+| [LICENCE-PCRE2.md](LICENCE-PCRE2.md) | PCRE2, which is compiled into `pcre2.wasm`: BSD-3-Clause with the PCRE2 exception | Keep the notices with the binary. `NOTICE` and the package carry them |
+
+[NOTICE](NOTICE) tells you which licence applies to which file.
