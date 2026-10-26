@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
 
       # Node from .nvmrc, the npm cache, `npm ci --ignore-scripts`.
-      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
       - name: Mutation test
         # Fails below the floor (thresholds.break in stryker.config.mjs).
