@@ -156,6 +156,18 @@ jobs:
           WASM_LD: wasm-ld-18
         run: build/build.sh --check
 
+      # A change to the build needs clang 18. When the module differs, this is
+      # the one CI built from this source: download it, check its sum, and
+      # commit it with its pcre2.wasm.sha256.
+      - name: Upload the rebuilt module
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pcre2-rebuilt
+          path: pcre2.rebuilt.wasm
+          if-no-files-found: ignore
+          retention-days: 7
+
   # npm audit reads the lockfile's registry packages after they merge. This
   # reads the pull request's dependency diff from the dependency graph and
   # refuses a newly added advisory before it lands. Needs the dependency graph

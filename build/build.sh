@@ -6,8 +6,9 @@
 #                                 is byte-identical to the committed module
 #
 # Needs only clang with the wasm32 target and wasm-ld (LLVM's lld): no
-# emscripten, no wasi-sdk. The module imports nothing and brings its own tiny
-# libc (libc/), so there is no JS glue to generate. The build is reproducible
+# emscripten, no wasi-sdk. The module imports only its memory, which the host
+# creates with the maximum it chooses, and brings its own tiny libc (libc/), so
+# there is no JS glue to generate. The build is reproducible
 # for a given clang major version; CI rebuilds with the one named below and
 # compares, so the committed binary is known to come from this source.
 set -euo pipefail
@@ -81,9 +82,13 @@ own_cflags=(-Wall -Wextra -Werror)
 "$CLANG" "${cflags[@]}" "${own_cflags[@]}" -c "$here/bridge.c" -o "$work/bridge.o"
 
 # 1 MiB of stack, placed first so an overflow traps instead of running into
-# static data; memory may grow to 1 GiB.
+# static data. The host supplies the memory (--import-memory) and sets its
+# maximum, up to the 1 GiB declared here (#12); it is exported too, so the
+# loader reads it as it did. 2 MiB to start, which src/index.ts repeats as
+# INITIAL_MEMORY_BYTES: a host memory smaller than this fails to link.
 "$WASM_LD" --no-entry --gc-sections --strip-all --stack-first \
-  -z stack-size=1048576 --max-memory=1073741824 \
+  -z stack-size=1048576 --import-memory --export-memory \
+  --initial-memory=2097152 --max-memory=1073741824 \
   "${objs[@]}" "$work/libc.o" "$work/bridge.o" -o "$work/pcre2.wasm"
 
 built_sum=$(sha256sum "$work/pcre2.wasm" | cut -d' ' -f1)
@@ -96,7 +101,10 @@ if [[ $check -eq 1 ]]; then
     exit 1
   fi
   if [[ "$built_sum" != "$committed_sum" ]]; then
-    echo "rebuilt module ($built_sum) differs from the committed one ($committed_sum)" >&2
+    # Kept, so that CI can upload the module it built: a change to the build
+    # needs clang 18, which a contributor may not have.
+    cp "$work/pcre2.wasm" "$pkg/pcre2.rebuilt.wasm"
+    echo "rebuilt module ($built_sum) differs from the committed one ($committed_sum); kept as pcre2.rebuilt.wasm" >&2
     exit 1
   fi
   echo "pcre2.wasm reproduces: $built_sum"

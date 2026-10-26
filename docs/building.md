@@ -15,8 +15,10 @@ committed file comes from the source, and how to upgrade PCRE2.
    `wasm-ld`.
 
 The build uses no emscripten and no wasi-sdk, and it makes no JS glue. The
-module imports nothing. It has its own small libc in `build/libc/`, and
-`build/bridge.c` is the interface that `src/index.ts` calls.
+module imports only its memory: `init` makes it, with the maximum that the
+host sets (see [the API](api.md#memory-limit)). The module has its own small
+libc in `build/libc/`, and `build/bridge.c` is the interface that
+`src/index.ts` calls.
 
 The build is byte-identical for one clang major version. `build.sh` names
 that version in `EXPECTED_CLANG_MAJOR`, and gives a warning for a different
@@ -35,6 +37,10 @@ npm run check:wasm   # rebuild in a temporary directory, and fail if the result 
 
 If `clang` and `wasm-ld` on your `PATH` are not version 18, set `CLANG` and
 `WASM_LD`, as CI does:
+
+If you do not have clang 18, push your change. When the rebuilt module is
+different, CI keeps it as the `pcre2-rebuilt` artifact. Download it, check
+its SHA-256, and commit it as `pcre2.wasm` with its `pcre2.wasm.sha256`.
 
 ```bash
 CLANG=clang-18 WASM_LD=wasm-ld-18 build/build.sh --check
