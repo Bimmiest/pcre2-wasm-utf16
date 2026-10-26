@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
 
       # Node from .nvmrc, the npm cache, `npm ci --ignore-scripts`.
-      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
       # Lint before typecheck: it is the faster of the two and fails on the
       # cheaper class of mistake, so a contributor who broke both hears about
@@ -79,7 +79,7 @@ jobs:
       # A step of its own so a red here reads as "raise the floor" and never as
       # a failing test.
       - name: Coverage floor is current
-        uses: Bimmiest/shared-workflows/.github/actions/coverage-ratchet@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+        uses: Bimmiest/shared-workflows/.github/actions/coverage-ratchet@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
       # The package ships its source, so the build type-checks `src/` alone,
       # as a consumer receives it: no tests, no Node types, ES2022 only.
@@ -96,13 +96,13 @@ jobs:
       # The documentation properties that are facts rather than judgements:
       # every relative link resolves, the ADR index agrees with its directory.
       - name: Documentation links and the ADR index
-        uses: Bimmiest/shared-workflows/.github/actions/docs-check@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+        uses: Bimmiest/shared-workflows/.github/actions/docs-check@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
       # Every production dependency's licence is on .licence-allowlist.json,
       # read from the lockfile, so it needs no network and sees exactly what
       # `npm ci --omit=dev` installs.
       - name: Production dependency licences
-        uses: Bimmiest/shared-workflows/.github/actions/licence-check@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+        uses: Bimmiest/shared-workflows/.github/actions/licence-check@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
   # Split out of `verify` on purpose. Sequentially, a new advisory turned the
   # whole run red after minutes of tests, and the tests' own verdict was lost
@@ -125,7 +125,7 @@ jobs:
       # Production dependencies are what ship, so they gate, at `high`, with
       # .audit-exceptions.json for an advisory nothing reachable is exposed to.
       - name: Advisories in production dependencies
-        uses: Bimmiest/shared-workflows/.github/actions/audit-check@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+        uses: Bimmiest/shared-workflows/.github/actions/audit-check@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
       # Reported, never fatal: a CVE in a build tool must not be able to block
       # a fix for something users are actually hitting.
@@ -174,7 +174,7 @@ jobs:
   # reject at run time; zizmor catches what GitHub happily runs. The check is
   # named `workflow-lint / workflow-lint`.
   workflow-lint:
-    uses: Bimmiest/shared-workflows/.github/workflows/workflow-lint.yml@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+    uses: Bimmiest/shared-workflows/.github/workflows/workflow-lint.yml@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
   # The default run is deterministic on purpose: one time zone, one locale, a
   # fixed order. That is what makes a red run reproducible, and it is also what
@@ -204,7 +204,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@db6586f85d7ffaade83ee996799ebf8f3fe43aae # v1.3.0
+      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
 
       - name: Test
         env:
