@@ -1,6 +1,6 @@
 {
   "name": "pcre2-wasm-utf16",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "PCRE2 (16-bit, UTF mode) compiled to WebAssembly, built reproducibly from a pinned release. UTF-16 offsets map straight onto JS string indices.",
   "license": "MIT AND BSD-3-Clause WITH PCRE2-exception",
