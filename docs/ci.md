@@ -8,7 +8,7 @@ Each CI job, what makes it fail, and where its rule is. CONTRIBUTING.md has the 
 
 | Job | What makes it fail | Where the rule is |
 |---|---|---|
-| `verify` | Lint, format, types, the test suite and its coverage floor, a floor that is out of date, the build, the contents of the package, the documentation checks of [documentation.md](documentation.md), and the licences of production dependencies | The scripts in `package.json`, `vitest.config.ts`, `scripts/check-package-contents.mjs`, `.docs-check.json`, `.licence-allowlist.json` |
+| `verify` | Lint, format, types, the test suite and its coverage floor, a floor that is out of date, the build, the contents of the package, the documentation checks of [documentation.md](documentation.md), the licences of production dependencies, and a file of repo-template that is missing | The scripts in `package.json`, `vitest.config.ts`, `scripts/check-package-contents.mjs`, `.docs-check.json`, `.licence-allowlist.json`, `.baseline-exceptions.json` |
 | `wasm` | A rebuilt `pcre2.wasm` that is not byte-identical to the committed file, or a warning in the C of this repository | `build/build.sh`, [building.md](building.md) |
 | `audit` | A high or critical advisory in a production dependency, with no exception | `.audit-exceptions.json` |
 | `dependency-review` | A pull request that adds a dependency with a high advisory | The GitHub dependency graph |
