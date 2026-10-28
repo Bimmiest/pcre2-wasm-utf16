@@ -4,6 +4,7 @@ import importX from 'eslint-plugin-import-x';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import comments from './scripts/eslint-comments.mjs';
 import lintAllowlist from './scripts/lint-allowlist.json' with { type: 'json' };
 
 /**
@@ -132,6 +133,13 @@ export default defineConfig([
         { groups: ['builtin', 'external', ['parent', 'sibling', 'index']], 'newlines-between': 'ignore' },
       ],
     },
+  },
+  {
+    // The comment rules in docs/code-style.md ("Code comments") that a tool
+    // can check: a TODO names its issue, and code is not kept in a comment.
+    files: ['**/*.{ts,mts,js,mjs}'],
+    plugins: { comments },
+    rules: { 'comments/todo-has-issue': 'error', 'comments/no-commented-out-code': 'error' },
   },
   {
     // Size and branching limits for hand-written code, so a function stays a

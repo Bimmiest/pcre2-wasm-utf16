@@ -126,12 +126,14 @@ are the rules that people break:
 ## Code style
 
 Prettier sets the layout, ESLint finds mistakes, and TypeScript is strict.
-[docs/code-style.md](docs/code-style.md) gives each rule with its reason. These
-are the rules that people break:
+[docs/code-style.md](docs/code-style.md) gives each rule with its reason, and
+the rules for code comments. These are the rules that people break:
 
 - **Do not use `eslint-disable` at a call site.** Turn a wrong rule off in
   `eslint.config.js`, with the sentence that says why.
 - **Do not use `!` in code that ships.** Narrow the type instead.
+- **A comment says why, for the code as it is now.** For history, link the
+  issue or the ADR.
 
 ## Dependencies
 
