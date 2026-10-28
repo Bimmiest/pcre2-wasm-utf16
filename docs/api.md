@@ -1,3 +1,7 @@
+---
+type: reference
+---
+
 # The API
 
 This file tells you how to load the module, how to use `Regex`, and how the
