@@ -35,13 +35,16 @@ a way around the check.
 
 ## Documentation
 
-- **Write all documentation in ASD-STE100.** CONTRIBUTING lists
-  [the rules](./CONTRIBUTING.md#documentation).
+- **Write all documentation in ASD-STE100.** docs/documentation.md lists
+  [the rules](./docs/documentation.md#asd-ste100).
+- **Put each text in its class.** A rule goes in CONTRIBUTING, in one or two
+  sentences. A recipe or a trap goes in the topic file of its area in `docs/`.
+  CI holds each class to a line limit ([the classes](./docs/documentation.md#where-each-text-goes)).
 - **Keep the README to the fundamentals, in a maximum of 200 lines.** CI
   fails a longer README. Put technical detail in a file in `docs/`, and link
   it from the README.
 - **Update the documents that your change makes wrong, in the same change.**
-  CI checks only links, the ADR index and the length of the README. The last
+  CI checks only links, the ADR index, the line limits and the topic types. The last
   person who changed the rest of the text keeps it true.
 
 ## Expensive to get wrong

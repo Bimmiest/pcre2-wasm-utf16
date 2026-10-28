@@ -41,12 +41,12 @@ jobs:
       # pin or the inputs below is what review looks at on a pull request that
       # touches `.github/workflows/`. The rules themselves are the action's,
       # pinned by sha; `dependabot[bot]` is exempt by author.
-      - uses: Bimmiest/shared-workflows/.github/actions/pr-hygiene@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
+      - uses: Bimmiest/shared-workflows/.github/actions/pr-hygiene@3ef90f03b0c9d3b07e9ae9a1ee7005116988ffd0 # v1.5.0
 
       # A change to what an install receives needs a CHANGELOG line, because
       # consumers read it to decide on a bump. The paths are the shipped files
       # that can change behaviour. The label `no-changelog` exempts a change
       # that no user can see, for example a comment.
-      - uses: Bimmiest/shared-workflows/.github/actions/changelog-check@5f68ca4788224cfb9fd210be687f9c00f7284b4a # v1.3.1
+      - uses: Bimmiest/shared-workflows/.github/actions/changelog-check@3ef90f03b0c9d3b07e9ae9a1ee7005116988ffd0 # v1.5.0
         with:
           paths: src/**,build/**,pcre2.wasm,pcre2.wasm.sha256,LICENCE-PCRE2.md,NOTICE

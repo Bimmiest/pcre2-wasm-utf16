@@ -1,3 +1,7 @@
+---
+type: how-to
+---
+
 # Building the module
 
 `pcre2.wasm` is in the repository, so you do not need a build to use the
