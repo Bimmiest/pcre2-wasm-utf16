@@ -98,22 +98,13 @@ Requirements: Node, at the version in [`.nvmrc`](.nvmrc). To rebuild
 
 ## Documentation
 
-| Document | What it holds |
-|---|---|
-| [docs/api.md](docs/api.md) | How to load the module, the `Regex` API, the flags, the semantics, the limits and the memory |
-| [docs/building.md](docs/building.md) | How `build/build.sh` makes `pcre2.wasm`, how CI proves it, and how to upgrade PCRE2 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | The rules: issues, branches, commits, pull requests, decisions, security and releases |
-| [docs/development.md](docs/development.md) | How to set up a checkout, run the gates, and the traps |
-| [docs/ci.md](docs/ci.md) | Each CI job, what makes it fail, and where its rule is |
-| [docs/testing.md](docs/testing.md) | The rules for tests, what each test file tests, and how to read a mutation run |
-| [docs/code-style.md](docs/code-style.md) | The rules for the layout, the lint and the types |
-| [docs/dependencies.md](docs/dependencies.md) | The rules for dependencies |
-| [docs/documentation.md](docs/documentation.md) | Where each text goes, the line limits, the topic types and the STE rules |
-| [docs/repository-settings.md](docs/repository-settings.md) | The repository settings that are not files, and that `settings.yml` checks |
-| [docs/adr/](docs/adr/README.md) | The decisions, and why we made them |
-| [CHANGELOG.md](CHANGELOG.md) | What changed for a user, newest first |
-| [SECURITY.md](SECURITY.md) | How to report a vulnerability, and what is in scope |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | The Contributor Covenant, enforced through the security contact |
+The topic files are listed in [docs/README.md](docs/README.md). The documents
+outside `docs/`:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — The rules: issues, branches, commits, pull requests, decisions, security and releases
+- [CHANGELOG.md](CHANGELOG.md) — What changed for a user, newest first
+- [SECURITY.md](SECURITY.md) — How to report a vulnerability, and what is in scope
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — The Contributor Covenant, enforced through the security contact
 
 ## Contributing and feedback
 
