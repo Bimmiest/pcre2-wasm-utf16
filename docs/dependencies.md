@@ -19,6 +19,10 @@ The rules for dependencies. CONTRIBUTING.md has the summary.
   versions back. If a high advisory has no path that the code can reach,
   list it in `.audit-exceptions.json` with the reason and an expiry date. An
   entry that has expired, or that no advisory needs, fails CI.
+- **An override has a reason and an issue that removes it.** `typed-rest-client`
+  → `qs` lifts the `qs` 6.15.1 that Stryker's `typed-rest-client` pins
+  exactly past its advisories. It is a development dependency only. Drop it
+  when Stryker depends on a fixed `typed-rest-client` ([#35](https://github.com/Bimmiest/pcre2-wasm-utf16/issues/35)).
 - **Licences.** The licence of each production dependency is on
   `.licence-allowlist.json`. Otherwise the file names the package, the
   version that a person read, and why it is acceptable.
