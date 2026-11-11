@@ -8,7 +8,7 @@ Each CI job, what makes it fail, and where its rule is. CONTRIBUTING.md has the 
 
 | Job | What makes it fail | Where the rule is |
 |---|---|---|
-| `verify` | Lint, format, types, the test suite and its coverage floor, a floor that is out of date, the build, the contents of the package, the documentation checks of [documentation.md](documentation.md), the licences of production dependencies, and a file of repo-template that is missing | The scripts in `package.json`, `vitest.config.ts`, `scripts/check-package-contents.mjs`, `.docs-check.json`, `.licence-allowlist.json`, `.baseline-exceptions.json` |
+| `verify` | Lint, a count in the lint allowlist that is different from the findings of its rule, format, types, the test suite and its coverage floor, a floor that is out of date, the build, the contents of the package, the documentation checks of [documentation.md](documentation.md), a `.nvmrc` that is not in the range of `engines`, the licences of production dependencies, and a file of repo-template that is missing | The scripts in `package.json`, `scripts/lint-allowlist.json`, `vitest.config.ts`, `scripts/check-package-contents.mjs`, `.docs-check.json`, `.nvmrc`, `.licence-allowlist.json`, `.baseline-exceptions.json` |
 | `wasm` | A rebuilt `pcre2.wasm` that is not byte-identical to the committed file, or a warning in the C of this repository | `build/build.sh`, [building.md](building.md) |
 | `audit` | A high or critical advisory in a production dependency, with no exception | `.audit-exceptions.json` |
 | `dependency-review` | A pull request that adds a dependency with a high advisory | The GitHub dependency graph |
@@ -17,6 +17,7 @@ Each CI job, what makes it fail, and where its rule is. CONTRIBUTING.md has the 
 | `Security` | A secret anywhere in the history, or a fixable CRITICAL or HIGH vulnerability or misconfiguration in the tree | `.gitleaks.toml`, `.trivyignore.yaml` |
 | `Scorecard` (weekly and on `main`) | Nothing. It reports the OpenSSF Scorecard checks, to the README badge and to code scanning | The repository settings and the workflows |
 | `Mutation` (weekly, and on a pull request that changes `src/`) | A mutation score below the floor in `stryker.config.mjs`. It is not a required check | [testing.md](testing.md) |
+| `Supply chain` (monthly, and on a pull request that changes `.nvmrc`) | A `.nvmrc` that is behind the newest patch of its Node line, or a Node line that ends in fewer than 90 days. On a pull request, it only gives a warning | `.nvmrc`, [dependencies.md](dependencies.md) |
 | `Settings` (weekly) | A repository setting that differs from the checklist, or that the token cannot read. A failure opens an issue | `.repo-settings.json` |
 
 Each job can fail independently, on purpose: a new advisory must not hide the

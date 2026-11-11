@@ -50,13 +50,19 @@ jobs:
           persist-credentials: false
 
       # Node from .nvmrc, the npm cache, `npm ci --ignore-scripts`.
-      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
       # Lint before typecheck: it is the faster of the two and fails on the
       # cheaper class of mistake, so a contributor who broke both hears about
       # the small one first.
       - name: Lint
         run: npm run lint
+
+      # The lint has each rule in scripts/lint-allowlist.json off for its file.
+      # This lints those files with the rules on again, and fails when a count
+      # is higher (new code) or lower (a fix that did not lower the count).
+      - name: Lint allowlist
+        uses: Bimmiest/shared-workflows/.github/actions/lint-allowlist-check@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
       # Fails on a file that `npm run format` would change, so a review never
       # spends its attention on layout.
@@ -79,7 +85,7 @@ jobs:
       # A step of its own so a red here reads as "raise the floor" and never as
       # a failing test.
       - name: Coverage floor is current
-        uses: Bimmiest/shared-workflows/.github/actions/coverage-ratchet@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+        uses: Bimmiest/shared-workflows/.github/actions/coverage-ratchet@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
       # The package ships its source, so the build type-checks `src/` alone,
       # as a consumer receives it: no tests, no Node types, ES2022 only.
@@ -96,18 +102,28 @@ jobs:
       # The documentation properties that are facts rather than judgements:
       # every relative link resolves, the ADR index agrees with its directory.
       - name: Documentation links and the ADR index
-        uses: Bimmiest/shared-workflows/.github/actions/docs-check@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+        uses: Bimmiest/shared-workflows/.github/actions/docs-check@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
+
+      # .nvmrc is in the Node range of `engines`, so CI never tests on a Node
+      # that the package says it does not support. engines-major stays at its
+      # default, false, because this is a library: `engines` (>=22.6.0) says
+      # which Node its users can run, and a consumer's npm reads it (ADR 0003),
+      # while .nvmrc is the Node 26 that its own CI runs on. Raising the floor
+      # to 26 to match would refuse every consumer on 22 and 24 for no reason.
+      # There is no devEngines, so the check skips it with a notice.
+      - name: .nvmrc agrees with engines
+        uses: Bimmiest/shared-workflows/.github/actions/node-version-check@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
       # Each file of repo-template's baseline is here, or excepted in
       # .baseline-exceptions.json with its reason.
       - name: The baseline files of repo-template
-        uses: Bimmiest/shared-workflows/.github/actions/baseline-check@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+        uses: Bimmiest/shared-workflows/.github/actions/baseline-check@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
       # Every production dependency's licence is on .licence-allowlist.json,
       # read from the lockfile, so it needs no network and sees exactly what
       # `npm ci --omit=dev` installs.
       - name: Production dependency licences
-        uses: Bimmiest/shared-workflows/.github/actions/licence-check@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+        uses: Bimmiest/shared-workflows/.github/actions/licence-check@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
   # Split out of `verify` on purpose. Sequentially, a new advisory turned the
   # whole run red after minutes of tests, and the tests' own verdict was lost
@@ -130,7 +146,7 @@ jobs:
       # Production dependencies are what ship, so they gate, at `high`, with
       # .audit-exceptions.json for an advisory nothing reachable is exposed to.
       - name: Advisories in production dependencies
-        uses: Bimmiest/shared-workflows/.github/actions/audit-check@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+        uses: Bimmiest/shared-workflows/.github/actions/audit-check@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
       # Reported, never fatal: a CVE in a build tool must not be able to block
       # a fix for something users are actually hitting.
@@ -191,7 +207,7 @@ jobs:
   # reject at run time; zizmor catches what GitHub happily runs. The check is
   # named `workflow-lint / workflow-lint`.
   workflow-lint:
-    uses: Bimmiest/shared-workflows/.github/workflows/workflow-lint.yml@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+    uses: Bimmiest/shared-workflows/.github/workflows/workflow-lint.yml@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
   # The default run is deterministic on purpose: one time zone, one locale, a
   # fixed order. That is what makes a red run reproducible, and it is also what
@@ -221,7 +237,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@b00f69f45abd2442821c1503a268f05ae09fd204 # v1.7.1
+      - uses: Bimmiest/shared-workflows/.github/actions/setup-node-project@6d9565a7d992fe10a1368249d3bdef47688a08c5 # v1.13.0
 
       - name: Test
         env:

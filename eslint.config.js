@@ -68,8 +68,9 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   // The findings that existed when a rule was adopted, turned off for their
-  // files only. scripts/lint-allowlist.test.mjs lints the same files with the
-  // rules on and fails when a count changes, so this cannot hide new code.
+  // files only (docs/code-style.md). CI's lint-allowlist-check and
+  // scripts/lint-allowlist.test.mjs lint the same files with the rules on and
+  // fail when a count changes, so this cannot hide new code.
   // Today: the ten `!` in src/index.ts, each a read of a typed-array view
   // over wasm memory at an index that the view was sized to hold.
   ...Object.entries(lintAllowlist.files).map(([file, rules]) => ({
