@@ -34,10 +34,18 @@ The rules for dependencies. CONTRIBUTING.md has the summary.
 - **Node** has an exact version in `.nvmrc`. `engine-strict=true` in
   `.npmrc` holds local installs to `engines`. Here, `engines` stays at
   `>=22.6.0`, because consumers read it too, and the library uses no Node
-  API ([ADR 0003](adr/0003-the-package-adopts-the-template-and-keeps-its-own-build.md)). CI warns on a
-  pull request, and fails each month, when `.nvmrc` is behind the newest
-  patch of its line. Move the major of `@types/node` with `.nvmrc`, not
-  before it.
+  API ([ADR 0003](adr/0003-the-package-adopts-the-template-and-keeps-its-own-build.md)). CI fails a
+  pull request when `.nvmrc` is not in the range of `engines`. The lower
+  bound of `engines` can be on an older major than `.nvmrc`, because it
+  gives the Node versions of the users. CI warns on a pull request, and
+  fails each month, when `.nvmrc` is behind the newest patch of its line, or
+  when its line ends in fewer than 90 days. Move the major of `@types/node`
+  with `.nvmrc`, not before it.
 - **Pin each action to a commit SHA**, with the version in a comment after
   it. Dependabot reads the comment and updates the SHA and the comment
   together. The owner of a tag can move it while a job holds a checkout.
+- **A release of `shared-workflows` comes after the cooldown.** Dependabot
+  proposes a tag only when it is seven days old, at the next weekly run.
+  Thus a release can wait up to 14 days for its pull request. When a release
+  must come earlier, move all its pins by hand in one change, and do what
+  its CHANGELOG entry tells a consumer to do.
